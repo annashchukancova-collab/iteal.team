@@ -90,6 +90,19 @@ h1{font:700 30px/1.2 var(--font-heading);color:var(--it-teal-deep);margin:16px 0
   // выбора, куда идти дальше (материалы, маршрутные карты и т.д.).
   var СТРАНИЦА_МАТЕРИАЛОВ = "talent-hub.html";
 
+  // Если почта уже подтверждена раньше (лежит в localStorage) — не спрашиваем
+  // её заново при каждом переходе на вкладку «Для талантов». Чтобы всё же
+  // сменить почту, ссылки должны вести на talent-gate.html?again=1.
+  var СНОВА = new URLSearchParams(location.search).get("again") === "1";
+  if (!СНОВА) {
+    var сохранённаяПочта = "";
+    try { сохранённаяПочта = (localStorage.getItem("iteal-talent-mail") || "").trim().toLowerCase(); } catch (e) {}
+    if (сохранённаяПочта && сохранённаяПочта.slice(-ДОМЕН.length) === ДОМЕН) {
+      location.replace(СТРАНИЦА_МАТЕРИАЛОВ);
+      return;
+    }
+  }
+
   var $ = function (s) { return document.querySelector(s); };
 
   function showResult(html, cls) {

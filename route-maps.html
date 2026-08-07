@@ -212,7 +212,7 @@ h1{font:700 32px/1.15 var(--font-heading);color:var(--it-teal-deep);margin:16px 
       el.innerHTML = 'Вы зашли без входа по почте — виден пустой список для «никого». <a href="talent-gate.html">Войти по рабочей почте →</a>';
     } else {
       el.innerHTML = 'Вы: <b>' + эк(ТЕКУЩАЯ_ПОЧТА) + '</b>' + (ЭТО_АДМИН ? ' (админ, виден весь список)' : ' (виден только ваш список)') +
-        ' · <a href="talent-gate.html">сменить →</a>';
+        ' · <a href="talent-gate.html?again=1">сменить →</a>';
     }
   })();
 
