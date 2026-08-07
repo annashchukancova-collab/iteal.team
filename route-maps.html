@@ -196,27 +196,16 @@ h1{font:700 32px/1.15 var(--font-heading);color:var(--it-teal-deep);margin:16px 
     document.head.appendChild(sc);
   }
 
+  // GET + JSONP, не POST: /exec у Apps Script всегда редиректит на
+  // script.googleusercontent.com, а браузер при редиректе превращает POST
+  // в GET и теряет тело запроса — доходило "успешно", но пустым. У GET
+  // тело не нужно, все данные едут прямо в адресе, редирект их не теряет.
   function postAction(payload, onDone) {
     if (!SEND_URL) { onDone(false, "адрес /exec ещё не вписан"); return; }
-    var frame = document.createElement("iframe");
-    frame.name = "iteal-rms-" + Date.now();
-    frame.style.display = "none";
-    document.body.appendChild(frame);
-    var form = document.createElement("form");
-    form.method = "POST"; form.action = SEND_URL; form.target = frame.name; form.style.display = "none";
-    var inp = document.createElement("input");
-    inp.type = "hidden"; inp.name = "payload"; inp.value = JSON.stringify(payload);
-    form.appendChild(inp);
-    document.body.appendChild(form);
-    var finished = false;
-    var cleanup = function () { form.remove(); setTimeout(function () { frame.remove(); }, 1500); };
-    var timer = setTimeout(function () { if (finished) return; finished = true; cleanup(); onDone(false, "нет ответа за 15 секунд"); }, 15000);
-    setTimeout(function () {
-      frame.addEventListener("load", function () {
-        if (finished) return; finished = true; clearTimeout(timer); cleanup(); onDone(true);
-      }, { once: true });
-      try { form.submit(); } catch (e) { if (!finished) { finished = true; clearTimeout(timer); cleanup(); onDone(false, "браузер заблокировал отправку"); } }
-    }, 60);
+    jsonp({ action: payload.kind, payload: JSON.stringify(payload) }, function (res) {
+      if (!res || res.ok === false) { onDone(false, (res && res.error) || "нет ответа"); return; }
+      onDone(true);
+    }, function (why) { onDone(false, why); }, 15000);
   }
 
   function box(html, cls) {

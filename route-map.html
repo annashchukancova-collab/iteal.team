@@ -811,11 +811,30 @@ function отправить(){
   отправитьНаСервер();
 }
 
-/* Скрытый iframe с form POST — работает и с file://, и без CORS, но не даёт
-   прочитать ответ сервера напрямую. Поэтому это «по-честному молчаливая»
-   отправка: не блокирует ввод и не требует кнопки, но и не спорит с
-   пользователем, если сеть подвела — просто попробует снова на следующей
-   отметке. Список карт (route-maps.html) — вот где реально видно, дошло или нет. */
+// GET + JSONP через <script src>, не POST-форма: /exec у Apps Script всегда
+// редиректит на script.googleusercontent.com, а браузер при редиректе
+// превращает POST в GET и теряет тело запроса — доходило "успешно" по факту
+// загрузки iframe, но пустым. У GET тело не нужно, всё в самом адресе,
+// редирект ничего не теряет.
+let счётчикОтправки = 0;
+function jsonpОтправка(params, готово){
+  const имя = '__iteal_rm_' + (++счётчикОтправки) + '_' + Date.now();
+  const sc = document.createElement('script');
+  let завершено = false;
+  const таймаут = setTimeout(() => finish(false, 'нет ответа за 15 секунд'), 15000);
+  function finish(ок, why, данные){
+    if(завершено) return; завершено = true; clearTimeout(таймаут);
+    try { delete window[имя]; } catch(e){ window[имя] = undefined; }
+    sc.remove(); готово(ок, why, данные);
+  }
+  window[имя] = (данные) => finish(!(данные && данные.ok === false), данные && данные.error, данные);
+  sc.onerror = () => finish(false, 'нет доступа к адресу');
+  let qs = 'callback=' + имя;
+  Object.keys(params || {}).forEach(k => { qs += '&' + k + '=' + encodeURIComponent(params[k]); });
+  sc.src = NEW_SEND_URL + (NEW_SEND_URL.indexOf('?') < 0 ? '?' : '&') + qs + '&t=' + Date.now();
+  document.head.appendChild(sc);
+}
+
 function отправитьНаСервер(){
   if(!NEW_SEND_URL) return;
   const фио = (АНКЕТА.фио || '').trim();
@@ -835,28 +854,11 @@ function отправитьНаСервер(){
   };
 
   шлём = true;
-  const frame = document.createElement('iframe');
-  frame.name = 'iteal-rm-' + Date.now();
-  frame.style.display = 'none';
-  document.body.appendChild(frame);
-  const form = document.createElement('form');
-  form.method = 'POST'; form.action = NEW_SEND_URL; form.target = frame.name; form.style.display = 'none';
-  const inp = document.createElement('input');
-  inp.type = 'hidden'; inp.name = 'payload'; inp.value = JSON.stringify(payload);
-  form.appendChild(inp);
-  document.body.appendChild(form);
-
-  const finish = (ок) => {
+  jsonpОтправка({ action: 'progress', payload: JSON.stringify(payload) }, (ок, why) => {
     шлём = false;
-    form.remove(); setTimeout(() => frame.remove(), 1500);
     статус(ок ? 'сохранено и отправлено ' + new Date().toLocaleTimeString('ru-RU').slice(0,5)
-              : 'сохранено локально, отправка не удалась — повторим на следующей отметке', ок ? '' : 'err');
-  };
-  const timer = setTimeout(() => finish(false), 15000);
-  setTimeout(() => {
-    frame.addEventListener('load', () => { clearTimeout(timer); finish(true); }, { once:true });
-    try { form.submit(); } catch(e){ clearTimeout(timer); finish(false); }
-  }, 60);
+              : 'сохранено локально, отправка не удалась — повторим на следующей отметке' + (why ? ' (' + why + ')' : ''), ок ? '' : 'err');
+  });
 }
 
 window.addEventListener('beforeunload', e => {
