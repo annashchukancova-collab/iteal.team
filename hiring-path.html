@@ -24,7 +24,7 @@ body{
   color:var(--ink); font:15px/1.5 var(--font-body);
   -webkit-font-smoothing:antialiased;
 }
-.wrap{max-width:1040px;margin:0 auto;padding:34px 22px 140px}
+.wrap{max-width:1040px;margin:0 auto;padding:0 16px 140px}
 h1,h2,h3,.disp{font-family:var(--font-display);font-weight:800;letter-spacing:-.01em}
 .lbl{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:var(--muted)}
 .lbl.b{color:var(--brand)}
@@ -235,6 +235,11 @@ footer{margin-top:44px;font-size:12px;color:var(--muted);line-height:1.6}
   background:#E3F1EC;color:#3B4742;font-family:var(--font-display);font-weight:700;font-size:14px;
   text-decoration:none;transition:background-color .14s ease-out}
 .it-nav a:hover{background:#D3E9E0}
+.it-totop{position:fixed;right:22px;bottom:30px;z-index:45;width:46px;height:46px;border-radius:50%;
+  border:1px solid var(--hairline);background:var(--paper);color:var(--brand);font-size:19px;font-weight:700;
+  cursor:pointer;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center}
+.it-totop:hover{background:#EAF3F8;border-color:var(--brand)}
+@media print{.it-totop{display:none}}
 </style>
 </head>
 <body>
@@ -318,12 +323,8 @@ footer{margin-top:44px;font-size:12px;color:var(--muted);line-height:1.6}
     <p class="hint">Найдите свою роль — это ваша зона ответственности. «Я играю роль → вот что я должен сделать».</p>
     <div class="rgrid" id="rgrid"></div>
   </section>
-
-  <footer>
-    Технология отбора талантов iTeal: шесть этапов от интервью Brain HR до Offer.<br>
-    Прогресс хранится локально в этом браузере (localStorage, префикс <code>iteal-hiring-checklist-v2</code>) и привязан к имени кандидата в тулбаре. Файл автономный: работает без интернета, с флешки.
-  </footer>
 </div>
+<button type="button" class="it-totop" id="toTop" aria-label="Наверх" title="Наверх">↑</button>
 
 <script>
 /* ============ КАРТИНКИ ============ */
@@ -792,6 +793,10 @@ function init(){
   window.addEventListener('load',()=>{placeCat(catPos,false);drawFill();});
 }
 init();
+document.getElementById('toTop').addEventListener('click', function () {
+  var rm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window.scrollTo({ top: 0, behavior: rm ? 'auto' : 'smooth' });
+});
 </script>
 </body>
 </html>
