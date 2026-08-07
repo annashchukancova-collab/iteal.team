@@ -23,7 +23,7 @@
   // ФИО/email здесь не спрашиваем: она появляется прямо на нужной странице
   // (тест талантов / тест на IQ), когда становится нужна, а не тут заранее.
   function render() {
-    app.innerHTML = headerHtml() + navHtml(null);
+    app.innerHTML = headerHtml(navHtml(null));
     bindNavDropdowns();
     if (window.lucide) lucide.createIcons();
   }

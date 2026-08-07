@@ -38,7 +38,7 @@ var IQ_TEST_URL = "https://ru.iq-test.cc/";
   function render() {
     profile = getProfile();
     var contentHtml = profile ? iqHtml() : gateHtml();
-    app.innerHTML = headerHtml() + navHtml("iq", [], { prev: { href: "talents.html", label: "Тест на таланты" } }) + heroImageHtml() + contentHtml;
+    app.innerHTML = headerHtml(navHtml("iq", [], { prev: { href: "talents.html", label: "Тест на таланты" } })) + heroImageHtml() + contentHtml;
     bindNavDropdowns();
     if (!profile) { bindGate(render); }
     if (window.lucide) lucide.createIcons();

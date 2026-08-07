@@ -45,8 +45,8 @@ var WEBHOOK_URL = "";
     return p;
   }
 
-  function headerHtml() {
-    return '<div class="app-header"><a href="index.html" aria-label="На главную"><img class="logo" src="' + LOGO_SRC + '" alt="iTeal"></a></div>';
+  function headerHtml(navHtml) {
+    return '<div class="app-header"><a href="index.html" aria-label="На главную"><img class="logo" src="' + LOGO_SRC + '" alt="iTeal"></a>' + (navHtml || '') + '</div>';
   }
 
   function heroImageHtml() {

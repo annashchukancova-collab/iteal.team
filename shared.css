@@ -96,6 +96,11 @@
     background: var(--it-white);
     padding: var(--space-2) 0;
     margin-bottom: var(--space-3);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    flex-wrap: wrap;
   }
   .logo { display: block; height: 60px; }
   .hero-img {
@@ -107,7 +112,7 @@
      у каждого свой выпадающий список под ним, а не плоский ряд вкладок:
      сайт растёт (тесты, потом материалы для действующих сотрудников),
      плоский ряд вкладок быстро не влезет и будет путать, кому что. */
-  .topnav { display: flex; gap: 8px; margin-bottom: var(--space-4); position: relative; z-index: 30; }
+  .topnav { display: flex; gap: 8px; flex-wrap: wrap; position: relative; z-index: 30; }
   .nav-item { position: relative; }
   .nav-trigger {
     display: inline-flex; align-items: center; gap: 6px;
@@ -119,6 +124,7 @@
     font-family: var(--font-heading);
     font-weight: 700;
     font-size: var(--text-small);
+    line-height: 1;
     text-decoration: none;
     cursor: pointer;
     transition: background-color 140ms ease-out, color 140ms ease-out;
@@ -520,5 +526,20 @@
       margin: 0; padding: 24px 0; border: none; box-shadow: none;
     }
     @page { margin: 14mm; }
+  }
+
+  /* Встроенное внешнее Apps Script приложение ("Адаптация") — во вкладке
+     "Для талантов". Высота фиксированная (страница внутри со своей
+     прокруткой): подогнать под реальную высоту содержимого без правок
+     в самом Apps Script нельзя, iframe не умеет сам сообщать свой размер
+     через границу разных источников (origin). */
+  .embed-frame {
+    margin-top: var(--space-2);
+    border-radius: var(--radius-soft);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+  }
+  .embed-frame iframe {
+    display: block; width: 100%; height: 1600px; border: none; background: var(--it-white);
   }
 
