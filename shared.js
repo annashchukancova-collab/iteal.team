@@ -68,13 +68,14 @@ var WEBHOOK_URL = "";
       { href: "talent-path.html", label: "\u0422\u0435\u0445\u043d\u043e\u043b\u043e\u0433\u0438\u044f \u0430\u0434\u0430\u043f\u0442\u0430\u0446\u0438\u0438", key: "talent-path" }
     ] }
   ];
-  function navHtml(active) {
+  function navHtml(active, onlyIds) {
+    var sections = onlyIds ? NAV_SECTIONS.filter(function (s) { return onlyIds.indexOf(s.id) !== -1; }) : NAV_SECTIONS;
     return '<nav class="topnav">' +
       '<a href="index.html" class="nav-trigger nav-home-link">' +
         '<i data-lucide="home" width="14" height="14" stroke-width="2"></i>' +
         'Главная' +
       '</a>' +
-      NAV_SECTIONS.map(function (section) {
+      sections.map(function (section) {
         var hasActive = section.items.some(function (it) { return it.key === active; });
         var itemsHtml = section.items.length
           ? section.items.map(function (it) {

@@ -759,7 +759,7 @@ function resultsHtml() {
     else if (state.screen === "quiz") contentHtml = quizHtml();
     else contentHtml = resultsHtml();
 
-    app.innerHTML = headerHtml() + heroImageHtml() + navHtml("talents") + contentHtml;
+    app.innerHTML = headerHtml() + heroImageHtml() + navHtml("talents", ["candidates"]) + contentHtml;
     bindNavDropdowns();
 
     if (!profile) { bindGate(render); if (window.lucide) lucide.createIcons(); return; }
