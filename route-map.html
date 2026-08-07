@@ -301,13 +301,13 @@ footer{margin-top:40px;font-size:11.5px;color:var(--muted);line-height:1.6}
       <span class="spacer"></span>
       <button class="btn" id="bOpen">Развернуть всё</button>
       <button class="btn" id="bClose">Свернуть всё</button>
-      <button class="btn send" id="bSend">Отправить прогресс</button>
       <button class="btn" id="bCsv">Скачать CSV</button>
       <button class="btn" id="bPrint">Печать</button>
       <button class="btn warn" id="bReset">Сбросить</button>
     </div>
     <div class="pwrap"><div class="pbar" id="pbar"></div></div>
     <div class="pnote" id="pnote">0% пути пройдено</div>
+    <div class="pnote" id="autosaveNote">Изменения сохраняются автоматически</div>
     <div class="sendbox" id="sendbox" hidden></div>
   </div>
 
@@ -1138,7 +1138,7 @@ function doSend(d, before){
   const good = (extra) => {
     if(finished) return; finished = true; clearTimeout(timer); cleanup();
     LS.set(PREFIX + "::sent::" + NAME, new Date().toISOString());
-    $("#bSend").title = "Последняя отправка: " + fmtDT(new Date());
+    $("#autosaveNote").textContent = "Сохранено и отправлено: " + fmtDT(new Date());
     box("Прогресс отправлен: <b>" + d.done + " из " + d.total + "</b> (" + d.pct + "%), самообучение " +
       d.studyDone + " из " + d.studyTotal + ". " + fmtDT(new Date()) + ". " + (extra || ""));
   };
@@ -1222,9 +1222,8 @@ function boot(){
 
   $("#bOpen").addEventListener("click", () => { document.querySelectorAll(".stage").forEach(s => s.classList.remove("collapsed")); requestAnimationFrame(() => placeWalker(false)); });
   $("#bClose").addEventListener("click", () => { document.querySelectorAll(".stage").forEach(s => s.classList.add("collapsed")); requestAnimationFrame(() => placeWalker(false)); });
-  $("#bSend").addEventListener("click", sendProgress);
   const lastSent = LS.get(PREFIX + "::sent::" + NAME);
-  if(lastSent) $("#bSend").title = "Последняя отправка: " + fmtDT(new Date(lastSent));
+  if(lastSent) $("#autosaveNote").textContent = "Сохранено и отправлено: " + fmtDT(new Date(lastSent));
   $("#bCsv").addEventListener("click", downloadCsv);
   $("#bPrint").addEventListener("click", () => window.print());
   $("#bReset").addEventListener("click", () => {
