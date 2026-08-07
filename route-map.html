@@ -34,7 +34,14 @@ img{display:block}
 a{color:var(--it-teal)}
 :focus-visible{outline:2px solid var(--it-teal);outline-offset:2px}
 
-.logo{height:64px;width:auto;margin-bottom:32px}
+.it-header{position:sticky;top:0;z-index:10;background:var(--it-white);padding:16px 0;
+  margin:0 0 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.it-header .logo{height:60px;width:auto;margin:0}
+.it-header .it-nav{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+.it-header .it-nav a{display:inline-flex;align-items:center;padding:10px 16px;border-radius:999px;
+  background:#E3F1EC;color:#3B4742;font-family:var(--font-heading);font-weight:700;font-size:14px;
+  text-decoration:none;transition:background-color .14s ease-out}
+.it-header .it-nav a:hover{background:#D3E9E0}
 .kicker{font:700 13px/1 var(--font-body);letter-spacing:.2em;text-transform:uppercase;color:var(--it-teal)}
 h1{font:700 32px/1.15 var(--font-heading);color:var(--it-teal-deep);margin:16px 0 0}
 .lead{margin-top:16px;max-width:60ch}
@@ -449,13 +456,13 @@ img.logo{display:block;height:46px;width:auto;margin-bottom:22px}
 </style>
 </head>
 <body>
-<div class="page" style="padding-bottom:0;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
-  <a href="index.html" aria-label="На главную"><img class="applogo" id="logo" alt="iTeal" style="display:block;height:64px;width:auto"></a>
-  <nav style="display:flex;gap:8px;flex-wrap:wrap;margin-left:auto">
-    <a href="route-maps.html" style="display:inline-flex;align-items:center;padding:10px 16px;border-radius:999px;background:#E3F1EC;color:#3B4742;font-family:'Ubuntu','Verdana',sans-serif;font-weight:700;font-size:14px;text-decoration:none">← Список карт</a>
-    <a href="index.html" style="display:inline-flex;align-items:center;padding:10px 16px;border-radius:999px;background:#E3F1EC;color:#3B4742;font-family:'Ubuntu','Verdana',sans-serif;font-weight:700;font-size:14px;text-decoration:none">Главная</a>
+<header class="it-header">
+  <a href="index.html" aria-label="На главную"><img class="logo" id="logo" alt="iTeal"></a>
+  <nav class="it-nav">
+    <a href="route-maps.html">← Список карт</a>
+    <a href="index.html">Главная</a>
   </nav>
-</div>
+</header>
 <div class="page" id="view-card">
   <div class="top"><span></span><span class="status" id="status">прогресс сохраняется в этом браузере</span></div>
 
