@@ -65,7 +65,8 @@ var WEBHOOK_URL = "";
     ] },
     { id: "talents-team", label: "\u0414\u043b\u044f \u0442\u0430\u043b\u0430\u043d\u0442\u043e\u0432", items: [
       { href: "hiring-path.html", label: "\u0422\u0435\u0445\u043d\u043e\u043b\u043e\u0433\u0438\u044f \u043e\u0442\u0431\u043e\u0440\u0430", key: "hiring-path" },
-      { href: "talent-path.html", label: "\u0422\u0435\u0445\u043d\u043e\u043b\u043e\u0433\u0438\u044f \u0430\u0434\u0430\u043f\u0442\u0430\u0446\u0438\u0438", key: "talent-path" }
+      { href: "talent-path.html", label: "\u0422\u0435\u0445\u043d\u043e\u043b\u043e\u0433\u0438\u044f \u0430\u0434\u0430\u043f\u0442\u0430\u0446\u0438\u0438", key: "talent-path" },
+      { href: "route-maps.html", label: "\u041c\u0430\u0440\u0448\u0440\u0443\u0442\u043d\u044b\u0435 \u043a\u0430\u0440\u0442\u044b", key: "route-maps" }
     ] }
   ];
   function navHtml(active, onlyIds, prevNext) {
