@@ -206,8 +206,24 @@ h1{font-family:var(--font-display);font-weight:800;font-size:32px;line-height:1.
       hired: $("#nHired").value,
       mail: $("#nMail").value.trim()
     };
-    box("Создаю карту…");
 
+    box("Проверяю связь с таблицей…");
+    jsonp({}, function (before) {
+      if (!before || before.ok === false) {
+        box('Таблица недоступна: ' + ((before && before.error) || "нет ответа") + '.<br>' + HINT, true);
+        return;
+      }
+      submitCreate(payload, before);
+    }, function (why) {
+      box('Нет ответа от сервера (' + why + ').<br>' + HINT, true);
+    });
+  }
+
+  // Скрытый iframe не даёт прочитать ответ сервера напрямую (кросс-доменно) —
+  // поэтому подтверждаем запись сверкой "было/стало" по значению stamp:
+  // отдельным GET-пингом до отправки и ещё раз через паузу после неё.
+  function submitCreate(payload, before) {
+    box("Создаю карту <b>" + payload.fio + "</b>…");
     var frame = document.createElement("iframe");
     frame.name = "iteal-rm-create-" + Date.now();
     frame.style.display = "none";
@@ -219,15 +235,33 @@ h1{font-family:var(--font-display);font-weight:800;font-size:32px;line-height:1.
     form.appendChild(inp);
     document.body.appendChild(form);
 
-    setTimeout(function () {
-      form.remove();
-      setTimeout(function () { frame.remove(); }, 1500);
+    var finished = false;
+    var cleanup = function () { form.remove(); setTimeout(function () { frame.remove(); }, 1500); };
+    var fail = function (why) {
+      if (finished) return; finished = true; clearTimeout(timer); cleanup();
+      box('Отправка не подтвердилась' + (why ? ": " + why : "") + '.<br>' + HINT, true);
+    };
+    var good = function () {
+      if (finished) return; finished = true; clearTimeout(timer); cleanup();
       var link = cardLink(payload);
-      box('Карта создана: <b>' + fio + '</b>.<br>Ссылка для таланта и наставника: <span class="lnk">' + link + '</span><br>' +
+      box('Карта создана: <b>' + payload.fio + '</b>.<br>Ссылка для таланта и наставника: <span class="lnk">' + link + '</span><br>' +
         '<a href="' + link + '" target="_blank" rel="noopener">Открыть карту →</a>');
       $("#nFio").value = ""; $("#nRole").value = ""; $("#nMentor").value = ""; $("#nHired").value = ""; $("#nMail").value = "";
       loadList();
-    }, 1200);
+    };
+    var check = function () {
+      jsonp({}, function (after) {
+        if (!after || after.ok === false) { fail('скрипт не смог открыть таблицу (' + ((after && after.error) || "").slice(0, 160) + ')'); return; }
+        if (typeof after.stamp === "undefined") { good(); return; }
+        if (after.stamp !== before.stamp) { good(); }
+        else { fail('запрос дошёл, но данные не записались — проверьте, что в Apps Script развёрнута версия из Маршрутные-карты.gs'); }
+      }, function () { fail("нет ответа при проверке"); });
+    };
+    var timer = setTimeout(function () { fail("нет ответа за 20 секунд"); }, 20000);
+    setTimeout(function () {
+      frame.addEventListener("load", function () { setTimeout(check, 1400); }, { once: true });
+      try { form.submit(); } catch (e) { fail("браузер заблокировал отправку"); }
+    }, 90);
   }
 
   $("#bNew").addEventListener("click", function () {

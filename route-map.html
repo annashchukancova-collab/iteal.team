@@ -709,7 +709,7 @@ function buildTrail(){
           num: step.n, title: strip(step.act), who: step.who || "—", fmt: step.fmt || "",
           stageNum: st.num, group: g.title || "" });
 
-        const toggle = () => { setDone(id, !isDone(id)); update(true); };
+        const toggle = () => { setDone(id, !isDone(id)); update(true); scheduleAutoSend(); };
         card.addEventListener("click", (e) => { if(e.target.closest("a")) return; toggle(); });
         card.addEventListener("keydown", (e) => { if(e.key === " " || e.key === "Enter"){ e.preventDefault(); toggle(); } });
       });
@@ -758,7 +758,7 @@ function buildStudy(){
         '<div class="chips">'+(it.dur ? '<span class="dur">'+it.dur+'</span>' : "")+src+'</div></div>';
       box.appendChild(el);
       studyFlat.push({ id, el, group: g.title, n: it.n, topic: strip(it.topic), dur: it.dur || "" });
-      const toggle = () => { setDone(id, !isDone(id)); update(false); };
+      const toggle = () => { setDone(id, !isDone(id)); update(false); scheduleAutoSend(); };
       el.addEventListener("click", (e) => { if(e.target.closest("a")) return; toggle(); });
       el.addEventListener("keydown", (e) => { if(e.key === " " || e.key === "Enter"){ e.preventDefault(); toggle(); } });
     });
@@ -770,7 +770,7 @@ const FB = DATA.feedback;
 let PERIOD = FB.periods[0].t;
 const fbKey = (id) => PREFIX + "::" + NAME + "::fb::" + id;
 const fbGet = (id) => LS.get(fbKey(id)) || "";
-const fbSet = (id, v) => v === "" ? LS.del(fbKey(id)) : LS.set(fbKey(id), v);
+const fbSet = (id, v) => { (v === "" ? LS.del(fbKey(id)) : LS.set(fbKey(id), v)); scheduleAutoSend(); };
 const pid = () => (FB.periods.filter(p => p.t === PERIOD)[0] || FB.periods[0]).k;
 
 function buildFeedback(){
@@ -885,6 +885,7 @@ function saveProfile(){
   FIELDS.forEach(f => { p[f] = $("#"+f).value; });
   LS.set(profileKey(), JSON.stringify(p));
   LS.set(PREFIX + "::lastname", NAME);
+  scheduleAutoSend();
 }
 function applyDates(){
   const hired = $("#hired").value;
@@ -1075,6 +1076,19 @@ const HINT = 'Что проверить: 1) в Apps Script нажмите «Ра
   'карандаш → Версия: Новая → Развернуть»; 2) в настройках развёртывания «Запускать от имени: Я» и ' +
   '«У кого есть доступ: У всех»; 3) в редакторе скрипта запустите функцию <code>проверка</code> — ' +
   'она напишет в журнале, видит ли скрипт вашу таблицу.';
+
+/* ---------- автоотправка: любое изменение (отметка, анкета, обратная связь)
+   ставится в очередь и улетает само через паузу, без нажатия кнопки. Пауза
+   нужна, чтобы серия быстрых кликов не превращалась в серию запросов. */
+let autoSendTimer = null;
+function autoSendProgress(){
+  if(!(($("#fio").value || "").trim())) return;   // отправлять нечьё "ФИО" некому
+  sendProgress();
+}
+function scheduleAutoSend(){
+  if(autoSendTimer) clearTimeout(autoSendTimer);
+  autoSendTimer = setTimeout(() => { autoSendTimer = null; autoSendProgress(); }, 2500);
+}
 
 function sendProgress(){
   const d = collect();
