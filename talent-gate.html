@@ -17,7 +17,7 @@
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--it-paper);color:var(--it-ink-soft);
-  font:400 16px/1.6 var(--font-body);padding:32px 24px 96px;min-height:100vh}
+  font:400 16px/1.6 var(--font-body);padding:0 24px 96px;min-height:100vh}
 .page{position:relative;max-width:1080px;margin:0 auto}
 a{color:var(--it-teal)}
 :focus-visible{outline:2px solid var(--it-teal);outline-offset:2px}
@@ -83,35 +83,13 @@ h1{font:700 30px/1.2 var(--font-heading);color:var(--it-teal-deep);margin:16px 0
 (function () {
   "use strict";
 
-  var SEND_URL = "https://script.google.com/a/macros/iteal.expert/s/AKfycbyvNwCQIvoEIHytg18mItMlTpVbOEaijGxsjjCZ7om4jU7EsKH4DZtmh--FFVmtQrQPcw/exec";
-
-  var АДМИНЫ = [
-    "anna.shchukancova@iteal.expert",
-    "pavel.stupko@iteal.expert",
-    "galina.marushevskaia@iteal.expert",
-    "anastasiia.edakina@iteal.expert"
-  ];
   var ДОМЕН = "@iteal.expert";
+  // Куда попадает любой сотрудник iteal.expert (включая админов) — общий вход
+  // в материалы «Для талантов»; дальше по ним же можно дойти и до «Маршрутных
+  // карт», где список уже сам разделит админов и остальных.
+  var СТРАНИЦА_МАТЕРИАЛОВ = "hiring-path.html";
 
   var $ = function (s) { return document.querySelector(s); };
-
-  function jsonp(params, ok, err, ms) {
-    var name = "__iteal_gate_" + Date.now() + "_" + Math.floor(Math.random() * 1e6);
-    var sc = document.createElement("script");
-    var done = false;
-    var tm = setTimeout(function () { fin(err, "нет ответа"); }, ms || 12000);
-    function fin(fn, arg) {
-      if (done) return; done = true; clearTimeout(tm);
-      try { delete window[name]; } catch (e) { window[name] = undefined; }
-      sc.remove(); if (fn) fn(arg);
-    }
-    window[name] = function (data) { fin(ok, data); };
-    sc.onerror = function () { fin(err, "нет доступа к адресу"); };
-    var qs = "callback=" + name;
-    Object.keys(params || {}).forEach(function (k) { qs += "&" + k + "=" + encodeURIComponent(params[k]); });
-    sc.src = SEND_URL + (SEND_URL.indexOf("?") < 0 ? "?" : "&") + qs + "&t=" + Date.now();
-    document.head.appendChild(sc);
-  }
 
   function showResult(html, cls) {
     var r = $("#result");
@@ -120,49 +98,20 @@ h1{font:700 30px/1.2 var(--font-heading);color:var(--it-teal-deep);margin:16px 0
     r.innerHTML = html;
   }
 
-  function cardLink(c) {
-    var qs = ["фио", "роль", "наставник", "принят", "mail"].map(function (pair) {
-      var val = { "фио": c.fio, "роль": c.role, "наставник": c.mentor, "принят": c.hired, "mail": c.mail }[pair];
-      return val ? pair + "=" + encodeURIComponent(val) : "";
-    }).filter(Boolean).join("&");
-    return "route-map.html" + (qs ? "?" + qs : "");
-  }
-
   function go() {
     var mail = $("#mail").value.trim().toLowerCase();
     if (!mail || mail.indexOf("@") < 0) { showResult('<p class="big">Укажи почту</p><p>Похоже, адрес введён не полностью.</p>', "err"); return; }
-
-    if (АДМИНЫ.indexOf(mail) !== -1) {
-      showResult('<span class="spinner"></span>Открываю список карт…');
-      location.href = "route-maps.html";
-      return;
-    }
 
     if (mail.slice(-ДОМЕН.length) !== ДОМЕН) {
       showResult('<p class="big">Ты пока что не часть корабля</p><p>Эта страница — для действующих сотрудников iTeal, с рабочей почтой в домене ' + ДОМЕН + '.</p>', "err");
       return;
     }
 
-    showResult('<span class="spinner"></span>Ищу твою карту…');
-    jsonp({ action: "list" }, function (info) {
-      if (!info || info.ok === false) {
-        showResult('<p class="big">Не получилось проверить</p><p>' + ((info && info.error) || "нет ответа") + ' — попробуй ещё раз чуть позже.</p>', "err");
-        return;
-      }
-      var cards = info.cards || [];
-      var found = null;
-      for (var i = 0; i < cards.length; i++) {
-        if (String(cards[i].mail || "").trim().toLowerCase() === mail) { found = cards[i]; break; }
-      }
-      if (!found) {
-        showResult('<p class="big">Адаптация давно пройдена</p><p>Для этой почты нет маршрутной карты — похоже, ты в команде уже давно.</p>');
-        return;
-      }
-      showResult('<span class="spinner"></span>Открываю твою карту…');
-      location.href = cardLink(found);
-    }, function (why) {
-      showResult('<p class="big">Не получилось проверить</p><p>' + why + ' — попробуй ещё раз чуть позже.</p>', "err");
-    });
+    // Сохраняем, кто пришёл — «Маршрутные карты» прочитают это, чтобы показать
+    // не весь список, а только карту с этой почтой (кроме админов).
+    try { localStorage.setItem('iteal-talent-mail', mail); } catch (e) {}
+    showResult('<span class="spinner"></span>Открываю…');
+    location.href = СТРАНИЦА_МАТЕРИАЛОВ;
   }
 
   $("#go").addEventListener("click", go);
