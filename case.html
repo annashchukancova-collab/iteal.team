@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Тест талантов iTeal — мини-кейс</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@500;700&family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="shared.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var app = document.getElementById("app");
+  var profile = requireProfile();
+
+function caseHtml() {
+    var c = state;
+    return '<span class="kicker">мини-кейс</span>' +
+      '<h1>Один короткий кейс</h1>' +
+      '<p class="lead">Это не тест с правильным ответом — просто посмотрим, как ты рассуждаешь. ' +
+      'Можно пропустить, ничего страшного, но лучше попробовать.</p>' +
+      '<div class="card sunken">' +
+        '<p><strong>Промпт бота поддержки:</strong> «Ты помощник поддержки. Отвечай кратко.»</p>' +
+        '<p><strong>Пользователь:</strong> «Уже третий раз пишу, ничего не работает!!!»</p>' +
+        '<p><strong>Ответ бота:</strong> «Спасибо за обращение! Мы всегда рады помочь. Хорошего дня!»</p>' +
+        '<details id="case-context"><summary>Показать переписку до этого момента</summary>' +
+          '<p>Пользователь дважды писал раньше: «Не могу зайти в личный кабинет» и «Пароль не подходит, ' +
+          'хотя только что сбросил». Бот оба раза отвечал одной и той же фразой про «обратитесь в поддержку».</p>' +
+        '</details>' +
+      '</div>' +
+      '<label for="case-answer">Что не так с ответом бота и что бы ты поправил(а)?</label>' +
+      '<textarea id="case-answer" rows="5" placeholder="Можно коротко, можно подробно — как удобно">' + escapeHtml(c.answer) + '</textarea>' +
+      '<button class="primary" id="case-next">Отправить</button>';
+  }
+  function bindCase() {
+    var c = state;
+    if (!c.startedAt) c.startedAt = Date.now();
+
+    var answerInput = document.getElementById("case-answer");
+    var nextBtn = document.getElementById("case-next");
+    var detailsEl = document.getElementById("case-context");
+
+    detailsEl.addEventListener("toggle", function () {
+      if (detailsEl.open) c.expandedContext = true;
+    });
+
+    nextBtn.addEventListener("click", function () {
+      var answerVal = answerInput.value.trim();
+      c.answer = answerVal;
+      c.skipped = answerVal.length === 0;
+      c.seconds = Math.round((Date.now() - c.startedAt) / 1000);
+      c.screen = "done";
+      sendCaseWebhook();
+      render();
+    });
+  }
+
+  function casePayload() {
+    var c = state;
+    return {
+      kind: "case",
+      name: profile.name,
+      email: profile.email,
+      seconds: c.seconds,
+      expandedContext: c.expandedContext,
+      skipped: c.skipped,
+      answer: c.answer
+    };
+  }
+
+  function sendCaseWebhook() {
+    if (!WEBHOOK_URL) return;
+    try {
+      fetch(WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(casePayload())
+      }).catch(function () { /* нет сети/CORS — ответ всё равно виден кандидату */ });
+    } catch (e) { /* игнорируем */ }
+  }
+
+  function caseDoneHtml() {
+    return '<span class="kicker">мини-кейс</span>' +
+      '<h1>Спасибо</h1>' +
+      '<p class="lead">Ответ сохранён. Дальше ничего делать не нужно — команда прочитает его отдельно, ' +
+      'без баллов и оценок.</p>' +
+      buildCaseReportHtml() +
+      '<div class="btn-row no-print">' +
+        '<button class="secondary" id="case-pdf"><i data-lucide="printer" width="16" height="16" stroke-width="1.7"></i>Печать / Сохранить как PDF</button>' +
+        '<button class="secondary" id="case-download"><i data-lucide="download" width="16" height="16" stroke-width="1.7"></i>Скачать JSON</button>' +
+        '<button class="secondary" id="case-copy"><i data-lucide="copy" width="16" height="16" stroke-width="1.7"></i>Скопировать ответ</button>' +
+      '</div>' +
+      '<p class="note">' + (WEBHOOK_URL ? "Ответ отправлен команде." : "Вебхук не настроен — скачай файл или отправь ответ HR вручную.") + '</p>';
+  }
+  function bindCaseDone() {
+    document.getElementById("case-pdf").addEventListener("click", function () { window.print(); });
+    document.getElementById("case-download").addEventListener("click", downloadCaseJson);
+    document.getElementById("case-copy").addEventListener("click", copyCaseText);
+  }
+
+  function downloadCaseJson() {
+    var blob = new Blob([JSON.stringify(casePayload(), null, 2)], { type: "application/json" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "case-" + (profile.name || "anon").replace(/\s+/g, "_") + ".json";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function copyCaseText() {
+    var c = state;
+    var lines = [];
+    lines.push("Мини-кейс iTeal (бот поддержки)");
+    lines.push(profile.name + " <" + profile.email + ">");
+    lines.push("Время: " + c.seconds + " сек, доп. контекст: " + (c.expandedContext ? "да" : "нет") +
+      ", пропущено: " + (c.skipped ? "да" : "нет"));
+    lines.push("Ответ: " + (c.answer || "(пусто)"));
+    var text = lines.join("\n");
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+    }
+  }
+
+  /* =========================================================
+     6. ЭКСПОРТ В PDF — ПЕЧАТЬ БРАУЗЕРА
+     Раньше здесь был html2canvas + jsPDF (doc.html): текст рендерился
+     в картинку, потому что встроенные шрифты jsPDF не умеют кириллицу.
+     Подход дважды ломался на сложной вёрстке отчёта — то белый лист
+     (когда снимаемый блок был сдвинут за экран), то заливка без текста
+     (когда собственная логика авторазбивки jsPDF на страницы спотыкалась
+     о вложенные блоки с CSS-переменными). Оба раза чинить приходилось
+     сам движок рендера, а не отчёт.
+
+     Заменили на нативную печать браузера (window.print + Ctrl+P →
+     «Сохранить как PDF»): печатается тот же .report, что уже показан
+     на экране (см. @media print в <style>, там всё, кроме .report,
+     скрывается через visibility). Плюсы — настоящий выделяемый текст,
+     разбивку на страницы A4 делает сам браузер, ноль сторонних
+     библиотек и ноль риска повторения этого класса багов.
+     ========================================================= */
+
+  function buildCaseReportHtml() {
+    var c = state;
+    var dateStr = new Date().toLocaleDateString("ru-RU", { day: "2-digit", month: "long", year: "numeric" });
+    return '<div class="report">' +
+        '<div class="brandbar">' +
+          '<img src="' + LOGO_SRC + '" alt="iTeal">' +
+          '<span class="stamp">Мини-кейс · ' + dateStr + '</span>' +
+        '</div>' +
+        '<header>' +
+          '<span class="eyebrow">Мини-кейс iTeal · ' + escapeHtml(profile.name) + ' · ' + dateStr + '</span>' +
+          '<h1>Кейс с ботом поддержки</h1>' +
+          '<p class="lede">Время на кейс: ' + c.seconds + ' сек. Доп. контекст открыт: ' +
+          (c.expandedContext ? "да" : "нет") + '. Пропущено: ' + (c.skipped ? "да" : "нет") + '.</p>' +
+        '</header>' +
+        '<section>' +
+          '<h2>Ответ</h2>' +
+          '<p style="white-space:pre-wrap">' + escapeHtml(c.answer || "(пусто)") + '</p>' +
+        '</section>' +
+        '<div class="footer-row">' +
+          '<img src="' + LOGO_SRC + '" alt="iTeal">' +
+          '<p class="src">Мини-кейс iTeal · ' + escapeHtml(profile.name) + ' &lt;' + escapeHtml(profile.email) + '&gt; · ' + dateStr + '</p>' +
+        '</div>' +
+      '</div>';
+  }
+
+
+  var state = { screen: "case", startedAt: null, expandedContext: false, answer: "", skipped: false, seconds: 0 };
+
+  function render() {
+    if (!profile) return;
+    var contentHtml = state.screen === "case" ? caseHtml() : caseDoneHtml();
+    app.innerHTML = headerHtml() + heroImageHtml() + navHtml("case") + contentHtml;
+    if (state.screen === "case") bindCase();
+    else bindCaseDone();
+    if (window.lucide) lucide.createIcons();
+  }
+
+  render();
+
+})();
+</script>
+</body>
+</html>

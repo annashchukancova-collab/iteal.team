@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Тест талантов iTeal — тест на IQ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@500;700&family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="shared.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var app = document.getElementById("app");
+  var profile = null;
+
+var IQ_TEST_URL = "https://ru.iq-test.cc/";
+
+  function iqHtml() {
+    return '<span class="kicker">тест на IQ</span>' +
+      '<h1>Тест на IQ</h1>' +
+      '<p class="lead">Пройди тест по ссылке ниже на внешнем сайте. Когда увидишь результат — ' +
+      'сделай скриншот экрана с баллом и отправь его Искателю Талантов, не забудь.</p>' +
+      '<div class="card">' +
+        '<p style="margin:0 0 12px;">Внешний тест на IQ (открывается в новой вкладке):</p>' +
+        '<a class="primary" style="display:inline-block;text-decoration:none;text-align:center" ' +
+          'href="' + IQ_TEST_URL + '" target="_blank" rel="noopener">Перейти к тесту на ' + escapeHtml(IQ_TEST_URL.replace(/^https?:\/\//, "").replace(/\/$/, "")) + '</a>' +
+      '</div>';
+  }
+
+  
+  function render() {
+    profile = getProfile();
+    var contentHtml = profile ? iqHtml() : gateHtml();
+    app.innerHTML = headerHtml() + heroImageHtml() + navHtml("iq") + contentHtml;
+    bindNavDropdowns();
+    if (!profile) { bindGate(render); }
+    if (window.lucide) lucide.createIcons();
+  }
+
+  render();
+
+})();
+</script>
+</body>
+</html>
