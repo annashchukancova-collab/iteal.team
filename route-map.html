@@ -827,7 +827,16 @@ function jsonpОтправка(params, готово){
     try { delete window[имя]; } catch(e){ window[имя] = undefined; }
     sc.remove(); готово(ок, why, данные);
   }
-  window[имя] = (данные) => finish(!(данные && данные.ok === false), данные && данные.error, данные);
+  // сервер эхом присылает, какое действие он реально выполнил — если оно не
+  // совпадает с запрошенным, значит развёрнута старая версия скрипта, которая
+  // молча откатилась на пинг вместо настоящей записи прогресса
+  window[имя] = (данные) => {
+    if(данные && данные._action !== undefined && params.action && данные._action !== params.action){
+      finish(false, 'сервер не выполнил «' + params.action + '» — похоже, развёрнута старая версия Маршрутные-карты.gs', данные);
+      return;
+    }
+    finish(!(данные && данные.ok === false), данные && данные.error, данные);
+  };
   sc.onerror = () => finish(false, 'нет доступа к адресу');
   let qs = 'callback=' + имя;
   Object.keys(params || {}).forEach(k => { qs += '&' + k + '=' + encodeURIComponent(params[k]); });

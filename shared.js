@@ -63,11 +63,7 @@ var WEBHOOK_URL = "";
       { href: "talents.html", label: "\u0422\u0435\u0441\u0442 \u043d\u0430 \u0442\u0430\u043b\u0430\u043d\u0442\u044b", key: "talents" },
       { href: "iq.html", label: "\u0422\u0435\u0441\u0442 \u043d\u0430 IQ", key: "iq" }
     ] },
-    { id: "talents-team", label: "\u0414\u043b\u044f \u0442\u0430\u043b\u0430\u043d\u0442\u043e\u0432", items: [
-      { href: "hiring-path.html", label: "\u0422\u0435\u0445\u043d\u043e\u043b\u043e\u0433\u0438\u044f \u043e\u0442\u0431\u043e\u0440\u0430", key: "hiring-path" },
-      { href: "talent-path.html", label: "\u0422\u0435\u0445\u043d\u043e\u043b\u043e\u0433\u0438\u044f \u0430\u0434\u0430\u043f\u0442\u0430\u0446\u0438\u0438", key: "talent-path" },
-      { href: "route-maps.html", label: "\u041c\u0430\u0440\u0448\u0440\u0443\u0442\u043d\u044b\u0435 \u043a\u0430\u0440\u0442\u044b", key: "route-maps" }
-    ] }
+    { id: "talents-team", label: "\u0414\u043b\u044f \u0442\u0430\u043b\u0430\u043d\u0442\u043e\u0432", href: "talent-gate.html" }
   ];
   function navHtml(active, onlyIds, prevNext) {
     var sections = onlyIds ? NAV_SECTIONS.filter(function (s) { return onlyIds.indexOf(s.id) !== -1; }) : NAV_SECTIONS;
@@ -84,6 +80,9 @@ var WEBHOOK_URL = "";
         'Главная' +
       '</a>' +
       sections.map(function (section) {
+        if (section.href) {
+          return '<a href="' + section.href + '" class="nav-trigger">' + section.label + '</a>';
+        }
         var hasActive = section.items.some(function (it) { return it.key === active; });
         var itemsHtml = section.items.length
           ? section.items.map(function (it) {

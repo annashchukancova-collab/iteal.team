@@ -6,16 +6,24 @@
  * переносить не нужно.
  *
  * ЧТО ДЕЛАЕТ
- *   • doGet ?action=list — отдаёт JSON-список всех карт (активных и в архиве)
- *     для страницы route-maps.html. Поддерживает JSONP через ?callback=.
- *   • doGet без action — быстрый пинг для диагностики связи с таблицей.
- *   • doPost, form-поле payload (JSON-строка), по полю kind:
+ *   Всё — через doGet (GET + JSONP), включая запись. Так сделано намеренно:
+ *   /exec у Apps Script всегда 302-редиректит на script.googleusercontent.com,
+ *   а браузер при редиректе превращает POST в GET и теряет тело запроса —
+ *   doPost в такой связке вызвать снаружи надёжно нельзя. У GET тело не нужно,
+ *   все данные едут в самом URL, редирект их не теряет.
+ *   • ?action=list — отдаёт JSON-список всех карт (активных и в архиве)
+ *     для страницы route-maps.html.
+ *   • без action — быстрый пинг для диагностики связи с таблицей.
+ *   • ?action=create|progress|archive|unarchive|delete&payload=<JSON> —
  *       - "create"   → создаёт новую строку (карту) в реестре;
  *       - "progress" → приходит САМА С СЕБЯ с карты (route-map.html) при
  *         каждой отметке/правке анкеты — обновляет % пройдено и остальные
  *         показатели; если пройдено 100% — карта САМА уходит в архив;
  *       - "archive" / "unarchive" — переносит карту в архив / возвращает;
  *       - "delete"   → удаляет строку насовсем (кнопка «Удалить» в списке).
+ *   Все ответы поддерживают JSONP через ?callback=.
+ *   doPost оставлен как резерв (вдруг что-то раньше слало настоящий POST) —
+ *   но полагаться на него нельзя по причине выше.
  *
  * ===========================  РАЗВЁРТЫВАНИЕ  ==============================
  * 1. В НОВОМ проекте Apps Script вставьте этот файл как Code.gs.
@@ -98,7 +106,24 @@ function увеличитьВерсию_() {
 
 function doGet(e) {
   var p = (e && e.parameter) || {};
-  var результат = String(p.action || '') === 'list' ? списокКарт_() : пинг_();
+  var action = String(p.action || '');
+  var результат;
+
+  if (action === 'list') {
+    результат = списокКарт_();
+  } else if (action === 'create' || action === 'progress' || action === 'archive' ||
+             action === 'unarchive' || action === 'delete') {
+    var data;
+    try { data = JSON.parse(p.payload || '{}'); } catch (err) { data = {}; }
+    результат = обработать_(action, data);
+  } else {
+    результат = пинг_();
+  }
+  // клиент сверяет это поле с тем, что запрашивал — если сервер не понял action
+  // (например, развёрнута старая версия кода) и тихо откатился на пинг,
+  // здесь будет 'ping', а не запрошенное действие, и клиент увидит настоящую ошибку
+  // вместо ложного «успеха».
+  результат._action = action || 'ping';
 
   if (p.callback) {
     return ContentService
@@ -108,6 +133,16 @@ function doGet(e) {
   return ContentService
     .createTextOutput(JSON.stringify(результат))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+function обработать_(action, data) {
+  switch (action) {
+    case 'create': return создатьКарту_(data);
+    case 'archive': return архивировать_(data.фио || data.fio, true);
+    case 'unarchive': return архивировать_(data.фио || data.fio, false);
+    case 'delete': return удалитьКарту_(data.фио || data.fio);
+    default: return обновитьПрогресс_(data);
+  }
 }
 
 function пинг_() {
@@ -154,6 +189,7 @@ function fmt_(v) {
 
 /* ================================  doPost  ================================= */
 
+/* Резерв — ненадёжен из-за 302-редиректа (см. шапку файла), основной путь — doGet. */
 function doPost(e) {
   var data;
   try {
@@ -162,14 +198,7 @@ function doPost(e) {
   } catch (err) {
     return вывод_({ ok: false, error: 'bad json' });
   }
-
-  switch (data.kind) {
-    case 'create': return вывод_(создатьКарту_(data));
-    case 'archive': return вывод_(архивировать_(data.фио || data.fio, true));
-    case 'unarchive': return вывод_(архивировать_(data.фио || data.fio, false));
-    case 'delete': return вывод_(удалитьКарту_(data.фио || data.fio));
-    default: return вывод_(обновитьПрогресс_(data));
-  }
+  return вывод_(обработать_(data.kind || 'progress', data));
 }
 
 function вывод_(obj) {
