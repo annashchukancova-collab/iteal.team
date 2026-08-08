@@ -125,14 +125,16 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     document.head.appendChild(sc);
   }
 
-  /* Совпадение — по вхождению почты в текст поля "Исполнители"/"Лидер круга"
-     (эти поля — свободный текст, туда можно вписать имя, почту или оба
-     сразу). Если человек указан только именем без почты — сюда он не
-     попадёт; это ограничение самих данных, а не подбора. */
-  function isMe_(assignees) {
-    if (!ТЕКУЩАЯ_ПОЧТА) return false;
+  /* "Исполнители"/"Лидер круга" теперь хранят ИМЯ из таблицы "Команда"
+     (выбирается выпадающим списком на role.html), а не почту — свободный
+     текст с почтой был только раньше. Поэтому сначала находим своё имя в
+     "Команде" по своей почте, а дальше сравниваем уже по имени, точным
+     совпадением (без учёта регистра/пробелов по краям). */
+  function isMe_(assignees, myName) {
+    if (!myName) return false;
+    var target = myName.trim().toLowerCase();
     return (assignees || []).some(function (v) {
-      return String(v || "").trim().toLowerCase().indexOf(ТЕКУЩАЯ_ПОЧТА) !== -1;
+      return String(v || "").trim().toLowerCase() === target;
     });
   }
 
@@ -142,20 +144,38 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       $("#status").className = "status err";
       return;
     }
-    jsonp({ action: "orgList" }, function (res) {
-      if (!res || res.ok === false) {
-        $("#status").textContent = "Не получилось загрузить структуру: " + ((res && res.error) || "нет ответа") + ".";
+    jsonp({ action: "teamList" }, function (teamRes) {
+      if (!teamRes || teamRes.ok === false) {
+        $("#status").textContent = "Не получилось загрузить «Команду»: " + ((teamRes && teamRes.error) || "нет ответа") + ".";
         $("#status").className = "status err";
         return;
       }
-      render(res.nodes || []);
+      var me = (teamRes.members || []).filter(function (m) {
+        return String(m.mail || "").trim().toLowerCase() === ТЕКУЩАЯ_ПОЧТА;
+      })[0];
+      if (!me) {
+        $("#status").innerHTML = 'Ваша почта не найдена во <a href="talent-hub.html">вкладке «Команда»</a> — попросите админа добавить вас туда, тогда кабинет сможет показать ваши роли.';
+        $("#status").className = "status err";
+        return;
+      }
+      jsonp({ action: "orgList" }, function (res) {
+        if (!res || res.ok === false) {
+          $("#status").textContent = "Не получилось загрузить структуру: " + ((res && res.error) || "нет ответа") + ".";
+          $("#status").className = "status err";
+          return;
+        }
+        render(res.nodes || [], me.name);
+      }, function (why) {
+        $("#status").textContent = "Нет связи с сервером: " + why + ".";
+        $("#status").className = "status err";
+      }, 15000);
     }, function (why) {
       $("#status").textContent = "Нет связи с сервером: " + why + ".";
       $("#status").className = "status err";
     }, 15000);
   }
 
-  function render(nodes) {
+  function render(nodes, myName) {
     var byId = {};
     nodes.forEach(function (n) { byId[n.id] = n; });
     var isLeaf = {};
@@ -165,7 +185,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     var roles = [];
     var circles = [];
     nodes.forEach(function (n) {
-      if (n.id === "root" || !isMe_(n.assignees)) return;
+      if (n.id === "root" || !isMe_(n.assignees, myName)) return;
       (n.id !== "root" && isLeaf[n.id] ? roles : circles).push(n);
     });
 
@@ -183,18 +203,18 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     }
 
     var html =
-      '<div class="whoami">Вы: <b>' + эк(ТЕКУЩАЯ_ПОЧТА) + '</b> · <a href="talent-gate.html?again=1">сменить почту</a></div>' +
+      '<div class="whoami">Вы: <b>' + эк(myName) + '</b> (' + эк(ТЕКУЩАЯ_ПОЧТА) + ') · <a href="talent-gate.html?again=1">сменить почту</a></div>' +
       '<div class="group"><h2>Роли, которые вы исполняете</h2>' +
       (roles.length
         ? '<div class="rolelist">' + roles.map(function (n) { return cardHtml(n, "role.html?id=" + encodeURIComponent(n.id)); }).join("") + "</div>"
-        : '<p class="empty-hint">Пока не найдено ни одной роли с вашей почтой.</p>') +
+        : '<p class="empty-hint">Пока не найдено ни одной роли с вашим именем.</p>') +
       "</div>" +
       '<div class="group"><h2>Круги, которые вы возглавляете</h2>' +
       (circles.length
         ? '<div class="rolelist">' + circles.map(function (n) { return cardHtml(n, "org-structure.html?focus=" + encodeURIComponent(n.id)); }).join("") + "</div>"
         : '<p class="empty-hint">Пока не найдено ни одного круга, где вы указаны лидером.</p>') +
       "</div>" +
-      '<p class="note">Если каких-то ролей не хватает — проверьте, что в поле «Исполнители»/«Лидер круга» на странице роли или круга указана именно эта почта.</p>' +
+      '<p class="note">Если каких-то ролей не хватает — проверьте, что в поле «Исполнители»/«Лидер круга» на странице роли или круга выбрано именно ваше имя из «Команды».</p>' +
       "<footer>iTeal — Connect people &amp; computers</footer>";
 
     $("#app").innerHTML = html;
