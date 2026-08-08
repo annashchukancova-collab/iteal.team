@@ -578,6 +578,20 @@ function обработатьИтоги_(action, d) {
   return { ok: false, error: 'неизвестное действие' };
 }
 
+/* Дата встречи — календарная дата, а не момент времени: если писать в ячейку
+   простую строку "2026-08-08", Google Таблицы сами превращают её в дату
+   (полночь по часовому поясу таблицы). Если потом форматировать её через
+   toISOString() (UTC), как обычные метки времени, дата на выходе съезжает
+   на день назад/вперёд в зависимости от часового пояса. Поэтому здесь —
+   отдельное форматирование, в часовом поясе самой таблицы. */
+function fmtДата_(v) {
+  if (!v) return '';
+  if (Object.prototype.toString.call(v) === '[object Date]') {
+    return Utilities.formatDate(v, книга_().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
+  }
+  return String(v);
+}
+
 function списокИтогов_() {
   try {
     var sh = листИтоги_();
@@ -586,7 +600,7 @@ function списокИтогов_() {
     var rows = sh.getRange(2, 1, last - 1, ШАПКА_ИТОГИ.length).getValues();
     var items = rows.filter(function (r) { return String(r[И.ID - 1]).trim(); }).map(function (r) {
       return {
-        id: r[И.ID - 1], type: r[И.ТИП - 1], date: fmt_(r[И.ДАТА - 1]),
+        id: r[И.ID - 1], type: r[И.ТИП - 1], date: fmtДата_(r[И.ДАТА - 1]),
         text: r[И.ТЕКСТ - 1] || '', attachments: строкаВСписок_(r[И.ВЛОЖЕНИЯ - 1]),
         author: r[И.АВТОР - 1] || '', createdAt: fmt_(r[И.СОЗДАНО - 1])
       };

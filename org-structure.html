@@ -448,27 +448,68 @@ ul.plain li::before{content:"— "}
 
       var showLabel = leaf ? d.r >= 16 : d.r >= 26;
       if (showLabel) {
-        var t = document.createElementNS(ns, "text");
-        var fs = Math.max(8, Math.min(13, d.r / 3.2));
-        t.setAttribute("font-size", fs);
-        t.setAttribute("class", "node-label" + (filled ? " on-fill" : "") + (!leaf ? " container" : ""));
-        if (leaf) {
-          t.setAttribute("x", d.x); t.setAttribute("y", d.y);
-          t.setAttribute("dominant-baseline", "middle");
-        } else {
-          t.setAttribute("x", d.x); t.setAttribute("y", d.y - d.r + fs + 4);
-        }
-        t.textContent = обрезать_(d.data.name, leaf ? Math.floor(d.r / (fs * 0.32)) : Math.floor((d.r * 1.6) / (fs * 0.55)));
-        wrap.appendChild(t);
+        var layout = layoutLabel_(d.data.name, d.r, leaf);
+        var cls = "node-label" + (filled ? " on-fill" : "") + (!leaf ? " container" : "");
+        var lineHeight = layout.fontSize * 1.15;
+        var startY = leaf ? d.y - (layout.lines.length - 1) * lineHeight / 2 : d.y - d.r + layout.fontSize + 4;
+        layout.lines.forEach(function (line, i) {
+          var t = document.createElementNS(ns, "text");
+          t.setAttribute("x", d.x);
+          t.setAttribute("y", startY + i * lineHeight);
+          t.setAttribute("font-size", layout.fontSize);
+          t.setAttribute("class", cls);
+          if (leaf) t.setAttribute("dominant-baseline", "middle");
+          t.textContent = line;
+          wrap.appendChild(t);
+        });
       }
       g.appendChild(wrap);
     });
   }
 
-  function обрезать_(s, max) {
-    s = String(s || "");
-    if (!max || s.length <= max) return s;
-    return s.slice(0, Math.max(1, max - 1)) + "…";
+  /* Подпись круга/роли — не обрезаем в одну строку с многоточием, а
+     переносим по словам на несколько строк и, если всё равно не влезает,
+     уменьшаем шрифт (до разумного минимума); многоточие — самый последний
+     запасной вариант, только если текст не влез даже после переноса. */
+  function layoutLabel_(name, r, leaf) {
+    var text = String(name || "").trim();
+    if (!text) return { fontSize: 0, lines: [] };
+    var maxLines = leaf ? 3 : 2;
+    var minFs = 7;
+    var fs = Math.max(minFs, Math.min(leaf ? 13 : 12, r / (leaf ? 3.2 : 3.6)));
+    var availWidth = r * (leaf ? 1.5 : 1.35);
+    var words = text.split(/\s+/);
+    var lines = [];
+    for (var attempt = 0; attempt < 6; attempt++) {
+      var maxChars = Math.max(3, Math.floor(availWidth / (fs * 0.56)));
+      lines = переносСлов_(words, maxChars);
+      if (lines.length <= maxLines || fs <= minFs) break;
+      fs -= 1;
+    }
+    if (lines.length > maxLines) {
+      var maxChars2 = Math.max(3, Math.floor(availWidth / (fs * 0.56)));
+      lines = lines.slice(0, maxLines);
+      var last = lines[maxLines - 1];
+      if (last.length > maxChars2 - 1) last = last.slice(0, Math.max(1, maxChars2 - 2));
+      lines[maxLines - 1] = last.replace(/\s+$/, "") + "…";
+    }
+    return { fontSize: fs, lines: lines };
+  }
+
+  function переносСлов_(words, maxChars) {
+    var lines = [];
+    var cur = "";
+    words.forEach(function (w) {
+      while (w.length > maxChars) {
+        if (cur) { lines.push(cur); cur = ""; }
+        lines.push(w.slice(0, Math.max(1, maxChars - 1)) + "-");
+        w = w.slice(Math.max(1, maxChars - 1));
+      }
+      var next = cur ? cur + " " + w : w;
+      if (cur && next.length > maxChars) { lines.push(cur); cur = w; } else { cur = next; }
+    });
+    if (cur) lines.push(cur);
+    return lines;
   }
 
   $("#svg").addEventListener("click", function (e) {
