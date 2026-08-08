@@ -78,6 +78,8 @@ h1{font:700 32px/1.15 var(--font-heading);color:var(--it-teal-deep);margin:16px 
   background:var(--it-paper);border:1px solid var(--it-line);border-radius:6px;padding:6px 8px}
 .teamtable input:focus{outline:none;border-color:var(--it-teal)}
 #teamAddBtn{margin:14px}
+.subhead{font:700 13px var(--font-heading);text-transform:uppercase;letter-spacing:.06em;
+  color:var(--it-grey);margin:36px 0 12px}
 .btn{font:600 14px var(--font-body);border:1px solid var(--it-teal);background:var(--it-white);
   color:var(--it-teal);border-radius:10px;padding:9px 16px;cursor:pointer}
 .btn:hover{background:rgba(122,193,168,.1)}
@@ -151,6 +153,17 @@ h1{font:700 32px/1.15 var(--font-heading);color:var(--it-teal-deep);margin:16px 
             <tbody id="teamBody"></tbody>
           </table>
           <button type="button" class="btn" id="teamAddBtn" hidden>+ Добавить сотрудника</button>
+        </div>
+
+        <h2 class="subhead">Отпуска</h2>
+        <div class="tablewrap" id="vacTableWrap" hidden>
+          <table class="teamtable">
+            <thead><tr id="vacHeadRow">
+              <th>Сотрудник</th><th>С</th><th>По</th><th>Комментарий</th>
+            </tr></thead>
+            <tbody id="vacBody"></tbody>
+          </table>
+          <button type="button" class="btn" id="vacAddBtn" hidden>+ Добавить отпуск</button>
         </div>
       </div>
     </div>
@@ -241,11 +254,22 @@ document.getElementById("hubNav").querySelectorAll("a").forEach(function (a) {
       document.getElementById("teamStatus").hidden = true;
       document.getElementById("teamTableWrap").hidden = false;
       renderTeam_();
+      loadVacations_();
     }, function (why) {
       document.getElementById("teamStatus").textContent = "Нет связи с сервером: " + why + ".";
       document.getElementById("teamStatus").className = "status err";
     }, 15000);
   };
+
+  var VACATIONS = [];
+  function loadVacations_() {
+    jsonp({ action: "vacationList" }, function (res) {
+      if (!res || res.ok === false) return;
+      VACATIONS = res.items || [];
+      document.getElementById("vacTableWrap").hidden = false;
+      renderVacations_();
+    }, function () { /* необязательный блок, тихо не показываем при сбое */ }, 15000);
+  }
 
   function socialLink_(base, value) {
     var v = String(value || "").trim();
@@ -409,6 +433,103 @@ document.getElementById("hubNav").querySelectorAll("a").forEach(function (a) {
     body.appendChild(row);
     wireEditRow_(row, null);
     row.querySelector(".f-name").focus();
+  });
+
+  /* ------------------------------  отпуска (внутри «Команды»)  ------------- */
+  /* teamAction переиспользуем как есть — это просто jsonp-обёртка с почтой
+     текущего админа, имя осталось от команды исторически, но подходит для
+     любого action'а с той же серверной проверкой прав. */
+
+  function viewVacRowHtml_(v) {
+    return '<tr data-id="' + эк(v.id) + '">' +
+      "<td>" + эк(v.employee) + "</td>" +
+      "<td>" + эк(fmtDate_(v.start)) + "</td>" +
+      "<td>" + эк(fmtDate_(v.end)) + "</td>" +
+      "<td>" + эк(v.comment) + "</td>" +
+      (ЭТО_АДМИН ? '<td class="rowactions"><button type="button" class="iconbtn danger" data-act="del" title="Удалить">×</button></td>' : "") +
+      "</tr>";
+  }
+
+  function employeeOptionsHtml_() {
+    if (!MEMBERS.length) return '<option value="">В «Команде» пока никого нет</option>';
+    return '<option value="">Выберите сотрудника…</option>' + MEMBERS.map(function (m) {
+      return '<option value="' + эк(m.name) + '">' + эк(m.name) + "</option>";
+    }).join("");
+  }
+
+  function editVacRowHtml_() {
+    return '<tr class="editrow">' +
+      '<td><select class="v-employee">' + employeeOptionsHtml_() + "</select></td>" +
+      '<td><input type="date" class="v-start"></td>' +
+      '<td><input type="date" class="v-end"></td>' +
+      '<td><input type="text" class="v-comment" placeholder="Необязательно"></td>' +
+      '<td class="rowactions"><button type="button" class="iconbtn" data-act="save" title="Сохранить">✓</button>' +
+      '<button type="button" class="iconbtn danger" data-act="cancel" title="Отмена">×</button></td>' +
+      "</tr>";
+  }
+
+  function renderVacations_() {
+    var head = document.getElementById("vacHeadRow");
+    var extraTh = head.querySelector(".rowactions-h");
+    if (ЭТО_АДМИН && !extraTh) {
+      var th = document.createElement("th");
+      th.className = "rowactions-h";
+      head.appendChild(th);
+    }
+    var sorted = VACATIONS.slice().sort(function (a, b) { return String(a.start || "").localeCompare(String(b.start || "")); });
+    document.getElementById("vacBody").innerHTML = sorted.length
+      ? sorted.map(viewVacRowHtml_).join("")
+      : '<tr><td colspan="' + (ЭТО_АДМИН ? 5 : 4) + '" class="empty-hint">Пока нет ни одного отпуска в графике.</td></tr>';
+    wireVacRows_();
+    var addBtn = document.getElementById("vacAddBtn");
+    addBtn.hidden = !ЭТО_АДМИН;
+  }
+
+  function wireVacRows_() {
+    if (!ЭТО_АДМИН) return;
+    document.getElementById("vacBody").querySelectorAll('[data-act="del"]').forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var tr = btn.closest("tr");
+        var id = tr.dataset.id;
+        var v = VACATIONS.filter(function (x) { return x.id === id; })[0];
+        if (!confirm('Удалить отпуск «' + (v ? v.employee : "") + '» из графика?')) return;
+        teamAction("vacationDelete", { id: id }, function (ok, resOrWhy) {
+          if (!ok) { alert("Не получилось: " + resOrWhy); return; }
+          VACATIONS = VACATIONS.filter(function (x) { return x.id !== id; });
+          renderVacations_();
+        });
+      });
+    });
+  }
+
+  document.getElementById("vacAddBtn").addEventListener("click", function () {
+    var body = document.getElementById("vacBody");
+    if (!VACATIONS.length) body.innerHTML = "";
+    var wrap = document.createElement("tbody");
+    wrap.innerHTML = editVacRowHtml_();
+    var row = wrap.firstChild;
+    body.appendChild(row);
+    row.querySelector('[data-act="cancel"]').addEventListener("click", function () {
+      row.remove();
+      if (!VACATIONS.length) renderVacations_();
+    });
+    row.querySelector('[data-act="save"]').addEventListener("click", function () {
+      var employee = row.querySelector(".v-employee").value;
+      var start = row.querySelector(".v-start").value;
+      var end = row.querySelector(".v-end").value;
+      var comment = row.querySelector(".v-comment").value.trim();
+      if (!employee) { alert("Выберите сотрудника."); return; }
+      if (!start || !end) { alert("Укажите даты начала и окончания."); return; }
+      var btn = row.querySelector('[data-act="save"]');
+      btn.disabled = true;
+      var id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+      teamAction("vacationAdd", { id: id, employee: employee, start: start, end: end, comment: comment }, function (ok, resOrWhy) {
+        if (!ok) { alert("Не сохранилось: " + resOrWhy); btn.disabled = false; return; }
+        VACATIONS.push({ id: id, employee: employee, start: start, end: end, comment: comment });
+        renderVacations_();
+      });
+    });
+    row.querySelector(".v-employee").focus();
   });
 })();
 </script>
