@@ -69,7 +69,7 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:40px;line-height:1.
 .tagadd:hover{background:rgba(122,193,168,.1)}
 
 /* вкладки */
-.tabs{display:flex;gap:4px;border-bottom:1px solid var(--it-line);margin-top:32px;flex-wrap:wrap;overflow-x:auto}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--it-line);margin-top:32px;flex-wrap:wrap}
 .tab{font:600 14px var(--font-body);color:var(--it-grey);background:none;border:none;
   padding:10px 14px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
 .tab:hover{color:var(--it-teal-deep)}
@@ -85,9 +85,7 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:40px;line-height:1.
   display:grid;place-items:center;font-family:var(--font-heading);font-weight:700;font-size:14px;color:var(--it-teal)}
 .item .txt{flex:1;min-width:0;padding-top:4px}
 .item .txt p{margin:0;font-size:16px;color:var(--it-ink)}
-.item .txt input{width:100%;font:400 16px/1.4 var(--font-body);color:var(--it-ink);border:none;
-  background:transparent;padding:0}
-.item .txt input:focus{outline:none;border-bottom:1px solid var(--it-mint)}
+.item .txt.editable{font-size:16px;color:var(--it-ink)}
 .item .itemdel{flex:none;width:26px;height:26px;border:1px solid var(--it-line);background:var(--it-white);
   border-radius:50%;color:var(--it-grey);cursor:pointer;font-size:15px;line-height:1;padding:0;margin-top:3px}
 .item .itemdel:hover{border-color:#B4483C;color:#93372C}
@@ -124,7 +122,6 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:40px;line-height:1.
 .citem .ctext{flex:1;font-size:15px;color:var(--it-ink);border:none;background:transparent;font-family:inherit}
 .citem .ctext:focus{outline:none}
 .citem.done .ctext{text-decoration:line-through;color:var(--it-grey)}
-.citem.done p.ctext{text-decoration:line-through;color:var(--it-grey)}
 
 /* вложения */
 .attrow{display:flex;gap:8px;align-items:center;background:var(--it-white);border:1px solid var(--it-line);
@@ -144,6 +141,25 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:40px;line-height:1.
 .hist .note{margin-top:8px;font-size:12.5px;color:var(--it-grey-light)}
 
 .notes-wrap{display:flex;flex-direction:column;gap:28px}
+
+.editable{outline:none;cursor:text}
+.editable:focus{background:rgba(122,193,168,.08);border-radius:4px}
+.rte.editable:focus{background:var(--it-white)}
+.rte.on-teal.editable:focus{background:rgba(255,255,255,.08)}
+.item .txt.editable{min-height:1.4em}
+.citem .ctext.editable{min-height:1.3em;padding:2px 0}
+
+.rtbar.floating{position:sticky;top:96px;z-index:9;background:var(--it-white);border:1px solid var(--it-line);
+  border-radius:10px;box-shadow:var(--shadow-md);padding:6px 8px;margin:16px 0 0;display:none;width:max-content}
+.rtbar.floating.show{display:flex}
+.rtbar.floating.on-teal{background:var(--it-teal-deep)}
+
+.histlist{display:flex;flex-direction:column;gap:10px}
+.histrow{background:var(--it-white);border:1px solid var(--it-line);border-radius:var(--radius-md);
+  padding:12px 14px;box-shadow:var(--shadow-sm);display:flex;flex-direction:column;gap:2px}
+.histrow b{color:var(--it-ink);font-size:14.5px}
+.histrow span{color:var(--it-grey);font-size:12.5px}
+
 
 footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font-size:13px;color:var(--it-grey)}
 
@@ -186,6 +202,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
   var ID = new URLSearchParams(location.search).get("id") || "";
   var CURRENT = null;
   var ACTIVE_TAB = "overview";
+  var РАЗД = String.fromCharCode(31);
 
   var $ = function (s) { return document.querySelector(s); };
   function эк(s) {
@@ -194,10 +211,10 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     });
   }
 
-  /* Минимальная защита: то, что попадает в rich-text поля, идёт через
-     execCommand в contenteditable, но на всякий случай перед сохранением
-     вырезаем теги/атрибуты, которые не могли появиться сами — если кто-то
-     руками подсунет мусор через консоль браузера. */
+  /* Минимальная защита: rich-текст приходит через execCommand в
+     contenteditable, но перед сохранением на всякий случай вырезаем теги/
+     атрибуты, которые не могли появиться сами — если кто-то руками
+     подсунет мусор через консоль браузера. */
   function sanitizeHtml_(html) {
     var el = document.createElement("div");
     el.innerHTML = String(html || "");
@@ -208,6 +225,12 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       });
     });
     return el.innerHTML;
+  }
+
+  function plainText_(html) {
+    var el = document.createElement("div");
+    el.innerHTML = String(html || "");
+    return (el.textContent || "").trim();
   }
 
   function jsonp(params, ok, err, ms) {
@@ -263,19 +286,146 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       CURRENT = node;
       $("#status").hidden = true;
       $("#card").hidden = false;
-      renderPage(CURRENT);
+      buildCard_(CURRENT);
     }, function (why) {
       $("#status").textContent = "Нет связи с сервером: " + why + ".";
       $("#status").className = "status err";
     }, 15000);
   }
 
-  function saveNode_(overrides, cb) {
-    var payload = Object.assign({}, CURRENT, overrides, { id: ID });
+  /* Сохранение — тихое, в фоне, БЕЗ перестройки всей карточки. Раньше после
+     каждого сохранения вызывался полный ререндер, и это ломало сразу два
+     сценария: клик по кнопке форматирования (mousedown уводил фокус с
+     contenteditable → преждевременный blur → сохранение → перестройка DOM
+     ДО того, как успевал сработать сам click с execCommand) и кнопки "+"
+     в списках (та же гонка). Теперь после сохранения только обновляем
+     CURRENT в памяти и — точечно — вкладку "История", ничего больше не
+     трогаем на экране. */
+  function saveNode_(overrides, changeLabel, cb) {
+    var payload = Object.assign({}, CURRENT, overrides, { id: ID, changeLabel: changeLabel || "Изменено" });
     orgAction("orgUpdateFields", payload, function (ok, resOrWhy) {
-      if (ok) { CURRENT = payload; renderPage(CURRENT); }
+      if (ok) {
+        CURRENT = Object.assign({}, CURRENT, overrides);
+        CURRENT.updatedAt = new Date().toLocaleString("ru-RU");
+        CURRENT.updatedBy = ТЕКУЩАЯ_ПОЧТА;
+        CURRENT.history = (CURRENT.history || []).concat([
+          [new Date().toISOString(), ТЕКУЩАЯ_ПОЧТА, changeLabel || "Изменено"].join(РАЗД)
+        ]);
+        refreshHistoryPanel_();
+      } else {
+        alert("Не сохранилось: " + resOrWhy);
+      }
       if (cb) cb(ok, resOrWhy);
     });
+  }
+
+  function refreshHistoryPanel_() {
+    var panel = document.querySelector('[data-panel="history"]');
+    if (panel) panel.innerHTML = historyHtml_(CURRENT);
+  }
+
+  /* ------------------------------  общий плавающий тулбар  ----------------- */
+  /* Один тулбар на всю страницу вместо отдельного под каждым полем —
+     появляется рядом с любым полем, куда встал курсор (contenteditable
+     с классом .editable), и форматирует именно его. mousedown на кнопках
+     тулбара всегда preventDefault — иначе клик по кнопке сам уводит фокус
+     с поля до того, как успеет сработать форматирование. */
+
+  var ACTIVE_EDITABLE = null;
+  var SAVED_RANGE = null;
+
+  function floatBarHtml_() {
+    return '<div class="rtbar floating" id="floatBar">' +
+      '<button type="button" data-cmd="bold" title="Жирный"><b>Ж</b></button>' +
+      '<button type="button" data-cmd="italic" title="Курсив"><i>К</i></button>' +
+      '<button type="button" data-cmd="justifyLeft" title="По левому краю">⇤</button>' +
+      '<button type="button" data-cmd="justifyCenter" title="По центру">⇔</button>' +
+      '<button type="button" data-cmd="justifyRight" title="По правому краю">⇥</button>' +
+      '<button type="button" data-cmd="justifyFull" title="По ширине">☰</button>' +
+      '<input type="color" data-cmd="foreColor" title="Цвет текста" value="#1C2622">' +
+      "</div>";
+  }
+
+  function wireFloatBar_() {
+    var bar = document.getElementById("floatBar");
+    if (!bar) return;
+
+    function getRange_() {
+      var sel = window.getSelection();
+      return sel && sel.rangeCount ? sel.getRangeAt(0).cloneRange() : null;
+    }
+    function restoreRange_(r) {
+      if (!r) return;
+      var sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(r);
+    }
+
+    bar.querySelectorAll("[data-cmd]").forEach(function (ctrl) {
+      var cmd = ctrl.dataset.cmd;
+      if (ctrl.tagName === "INPUT") {
+        ctrl.addEventListener("mousedown", function () { SAVED_RANGE = getRange_(); });
+        ctrl.addEventListener("input", function () {
+          if (!ACTIVE_EDITABLE) return;
+          ACTIVE_EDITABLE.focus();
+          restoreRange_(SAVED_RANGE);
+          document.execCommand(cmd, false, ctrl.value);
+        });
+      } else {
+        ctrl.addEventListener("mousedown", function (e) { e.preventDefault(); });
+        ctrl.addEventListener("click", function () {
+          if (!ACTIVE_EDITABLE) return;
+          ACTIVE_EDITABLE.focus();
+          document.execCommand(cmd, false, null);
+        });
+      }
+    });
+  }
+
+  function showFloatBar_(el) {
+    var bar = document.getElementById("floatBar");
+    if (!bar) return;
+    ACTIVE_EDITABLE = el;
+    bar.classList.add("show");
+    var onTeal = el.classList.contains("on-teal");
+    bar.classList.toggle("on-teal", onTeal);
+  }
+
+  function hideFloatBar_() {
+    var bar = document.getElementById("floatBar");
+    if (bar) bar.classList.remove("show");
+    ACTIVE_EDITABLE = null;
+  }
+
+  document.addEventListener("focusin", function (e) {
+    var el = e.target.closest && e.target.closest(".editable");
+    if (!el) return;
+    showFloatBar_(el);
+  });
+
+  document.addEventListener("focusout", function (e) {
+    var el = e.target.closest && e.target.closest(".editable");
+    if (!el) return;
+    saveEditable_(el);
+    setTimeout(function () {
+      var a = document.activeElement;
+      var stillEditing = a && a.closest && a.closest(".editable");
+      var bar = document.getElementById("floatBar");
+      var inToolbar = a && bar && bar.contains(a);
+      if (!stillEditing && !inToolbar) hideFloatBar_();
+    }, 0);
+  });
+
+  function saveEditable_(el) {
+    var html = sanitizeHtml_(el.innerHTML);
+    if (el.dataset.field) {
+      var o = {}; o[el.dataset.field] = html;
+      saveNode_(o, el.dataset.field === "purpose" ? "Миссия" : "Примечания");
+    } else if (el.dataset.list) {
+      saveListField_(el.dataset.list);
+    } else if (el.dataset.checklist !== undefined) {
+      saveChecklist_();
+    }
   }
 
   /* ------------------------------  карточка и вкладки  --------------------- */
@@ -291,13 +441,14 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     { key: "history", label: "История" }
   ];
 
-  function renderPage(n) {
+  function buildCard_(n) {
     document.title = n.name + " — роль в iTeal";
     var admin = ЭТО_АДМИН;
     var html =
       '<p class="kicker">Роль в iTeal</p>' +
       (admin ? '<input class="h1input" id="fName" type="text" value="' + эк(n.name) + '">' : "<h1>" + эк(n.name) + "</h1>") +
       '<div class="rule"></div>' +
+      (admin ? floatBarHtml_() : "") +
       heroHtml_(n) +
       assigneesHtml_(n) +
       '<div class="tabs" id="tabs">' + TABS.map(function (t) {
@@ -324,10 +475,11 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
 
     if (!admin) return;
 
-    $("#fName").addEventListener("change", function () { saveNode_({ name: $("#fName").value.trim() }); });
+    $("#fName").addEventListener("change", function () { saveNode_({ name: $("#fName").value.trim() }, "Название"); });
+    wireFloatBar_();
     wireTagField_("assignees");
-    wireRichText_("purpose", true);
-    wireRichText_("notes", false);
+    wireListField_("domains");
+    wireListField_("accountabilities");
     wireListField_("policies");
     wireListField_("projects");
     wireListField_("goals");
@@ -357,7 +509,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       '"><button type="button" class="tagdel" aria-label="Удалить">×</button></span>';
   }
 
-  /* ---- Обзор: миссия (rich text) + домены + обязанности ---- */
+  /* ---- Обзор: миссия (rich text) + домены + обязанности (тоже rich text) ---- */
 
   function overviewHtml_(n) {
     return richFieldSectionHtml_("Миссия", "purpose", n.purpose, true) +
@@ -372,54 +524,18 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
         ? '<section class="mission"><p class="kicker">' + title + "</p>" + view + "</section>"
         : '<section class="sec"><p class="kicker mb">' + title + "</p>" + view + "</section>";
     }
-    var bar =
-      '<div class="rtbar' + (onTeal ? " on-teal" : "") + '" data-target="rte-' + fieldKey + '">' +
-      '<button type="button" data-cmd="bold"><b>Ж</b></button>' +
-      '<button type="button" data-cmd="italic"><i>К</i></button>' +
-      '<button type="button" data-cmd="justifyLeft" title="По левому краю">⇤</button>' +
-      '<button type="button" data-cmd="justifyCenter" title="По центру">⇔</button>' +
-      '<button type="button" data-cmd="justifyRight" title="По правому краю">⇥</button>' +
-      '<button type="button" data-cmd="justifyFull" title="По ширине">☰</button>' +
-      '<input type="color" data-cmd="foreColor" title="Цвет текста" value="' + (onTeal ? "#ffffff" : "#1C2622") + '">' +
-      "</div>" +
-      '<div class="rte' + (onTeal ? " on-teal" : "") + '" id="rte-' + fieldKey + '" contenteditable="true">' + (html || "") + "</div>";
+    var body = '<div class="rte editable' + (onTeal ? " on-teal" : "") + '" data-field="' + fieldKey + '" contenteditable="true">' + (html || "") + "</div>";
     return onTeal
-      ? '<section class="mission"><p class="kicker">' + title + "</p>" + bar + "</section>"
-      : '<section class="sec"><p class="kicker mb">' + title + "</p>" + bar + "</section>";
-  }
-
-  function wireRichText_(fieldKey, onTeal) {
-    var bar = document.querySelector('.rtbar[data-target="rte-' + fieldKey + '"]');
-    var rte = document.getElementById("rte-" + fieldKey);
-    if (!bar || !rte) return;
-    bar.querySelectorAll("[data-cmd]").forEach(function (ctrl) {
-      var cmd = ctrl.dataset.cmd;
-      if (ctrl.tagName === "INPUT") {
-        ctrl.addEventListener("input", function () {
-          rte.focus();
-          document.execCommand(cmd, false, ctrl.value);
-        });
-        ctrl.addEventListener("change", function () { saveRte_(fieldKey, rte); });
-      } else {
-        ctrl.addEventListener("click", function () {
-          rte.focus();
-          document.execCommand(cmd, false, null);
-        });
-      }
-    });
-    rte.addEventListener("blur", function () { saveRte_(fieldKey, rte); });
-  }
-
-  function saveRte_(fieldKey, rte) {
-    var overrides = {};
-    var savedField = fieldKey === "purpose" ? "purpose" : "notes";
-    overrides[savedField] = sanitizeHtml_(rte.innerHTML);
-    saveNode_(overrides);
+      ? '<section class="mission"><p class="kicker">' + title + "</p>" + body + "</section>"
+      : '<section class="sec"><p class="kicker mb">' + title + "</p>" + body + "</section>";
   }
 
   /* ---- списки через "+": домены/обязанности/политики/проекты/цели/метрики ---- */
+  /* Пункты — contenteditable, а не <input>, чтобы к ним тоже применялось
+     форматирование через общий плавающий тулбар (жирный/курсив/цвет/
+     выравнивание), как попросили — не только к Миссии и Примечаниям. */
 
-  var LIST_TITLES = { policies: "Политики", projects: "Проекты", goals: "Цели", metrics: "Метрики" };
+  var LIST_TITLES = { policies: "Политики", projects: "Проекты", goals: "Цели", metrics: "Метрики", domains: "Домены", accountabilities: "Обязанности" };
 
   function listSectionHtml_(fieldKey, items) {
     var title = LIST_TITLES[fieldKey] || fieldKey;
@@ -429,18 +545,20 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
   function listBodyHtml_(fieldKey, items) {
     if (!ЭТО_АДМИН) {
       if (!items.length) return '<p class="empty-hint">Пока пусто</p>';
-      return '<div class="list">' + items.map(function (v, i) { return itemHtml_(i, v, false); }).join("") + "</div>";
+      return '<div class="list">' + items.map(function (v, i) { return itemHtml_(i, v, false, fieldKey); }).join("") + "</div>";
     }
     return '<div class="list" id="list-' + fieldKey + '">' +
-      (items.length ? items.map(function (v, i) { return itemHtml_(i, v, true); }).join("") : '<p class="empty-hint">Пока пусто</p>') +
+      (items.length ? items.map(function (v, i) { return itemHtml_(i, v, true, fieldKey); }).join("") : '<p class="empty-hint">Пока пусто</p>') +
       '</div><button type="button" class="listadd" data-field="' + fieldKey + '">+ добавить</button>';
   }
 
-  function itemHtml_(i, value, editable) {
+  function itemHtml_(i, html, editable, fieldKey) {
     var num = String(i + 1).length < 2 ? "0" + (i + 1) : String(i + 1);
-    return '<div class="item"><span class="n">' + num + '</span><div class="txt">' +
-      (editable ? '<input type="text" class="chipinput" value="' + эк(value || "") + '">' : "<p>" + эк(value) + "</p>") +
-      "</div>" + (editable ? '<button type="button" class="itemdel" aria-label="Удалить">×</button>' : "") + "</div>";
+    var body = editable
+      ? '<div class="txt editable" contenteditable="true" data-list="' + fieldKey + '">' + (html || "") + "</div>"
+      : '<div class="txt">' + (html || "") + "</div>";
+    return '<div class="item"><span class="n">' + num + "</span>" + body +
+      (editable ? '<button type="button" class="itemdel" aria-label="Удалить">×</button>' : "") + "</div>";
   }
 
   function renumber_(list) {
@@ -450,42 +568,39 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     });
   }
 
-  function gatherChips_(fieldKey) {
+  function saveListField_(fieldKey) {
     var list = document.getElementById("list-" + fieldKey);
-    if (!list) return [];
-    return Array.prototype.map.call(list.querySelectorAll(".chipinput"), function (el) { return el.value.trim(); }).filter(Boolean);
-  }
-
-  function fieldPayload_(fieldKey) {
-    var o = {};
-    o[fieldKey] = gatherChips_(fieldKey);
-    return o;
+    if (!list) return;
+    var items = Array.prototype.map.call(list.querySelectorAll(".editable"), function (el) {
+      return sanitizeHtml_(el.innerHTML);
+    }).filter(function (html) { return plainText_(html); });
+    var o = {}; o[fieldKey] = items;
+    saveNode_(o, LIST_TITLES[fieldKey] || fieldKey);
   }
 
   function wireListField_(fieldKey) {
     var list = document.getElementById("list-" + fieldKey);
     if (!list) return;
-    Array.prototype.forEach.call(list.querySelectorAll(".item"), function (item) { wireItem_(list, item, fieldKey); });
     var addBtn = document.querySelector('.listadd[data-field="' + fieldKey + '"]');
     if (!addBtn) return;
     addBtn.addEventListener("click", function () {
       var hint = list.querySelector(".empty-hint");
       if (hint) hint.remove();
       var wrap = document.createElement("div");
-      wrap.innerHTML = itemHtml_(list.querySelectorAll(".item").length, "", true);
+      wrap.innerHTML = itemHtml_(list.querySelectorAll(".item").length, "", true, fieldKey);
       var item = wrap.firstChild;
       list.appendChild(item);
-      wireItem_(list, item, fieldKey);
-      item.querySelector(".chipinput").focus();
+      wireItemDelete_(list, item, fieldKey);
+      item.querySelector(".editable").focus();
     });
+    Array.prototype.forEach.call(list.querySelectorAll(".item"), function (item) { wireItemDelete_(list, item, fieldKey); });
   }
 
-  function wireItem_(list, item, fieldKey) {
-    item.querySelector(".chipinput").addEventListener("change", function () { saveNode_(fieldPayload_(fieldKey)); });
+  function wireItemDelete_(list, item, fieldKey) {
     item.querySelector(".itemdel").addEventListener("click", function () {
       item.remove();
       renumber_(list);
-      saveNode_(fieldPayload_(fieldKey));
+      saveListField_(fieldKey);
     });
   }
 
@@ -505,11 +620,21 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     });
   }
 
+  function gatherTags_(fieldKey) {
+    var list = document.getElementById("list-" + fieldKey);
+    if (!list) return [];
+    return Array.prototype.map.call(list.querySelectorAll(".chipinput"), function (el) { return el.value.trim(); }).filter(Boolean);
+  }
+
   function wireTag_(tag, fieldKey) {
-    tag.querySelector(".chipinput").addEventListener("change", function () { saveNode_(fieldPayload_(fieldKey)); });
+    tag.querySelector(".chipinput").addEventListener("change", function () {
+      var o = {}; o[fieldKey] = gatherTags_(fieldKey);
+      saveNode_(o, "Исполнители");
+    });
     tag.querySelector(".tagdel").addEventListener("click", function () {
       tag.remove();
-      saveNode_(fieldPayload_(fieldKey));
+      var o = {}; o[fieldKey] = gatherTags_(fieldKey);
+      saveNode_(o, "Исполнители");
     });
   }
 
@@ -523,7 +648,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
   }
 
   function parseAttachment_(line) {
-    var idx = line.indexOf("|");
+    var idx = line.indexOf(РАЗД);
     return idx < 0 ? { name: line, url: line } : { name: line.slice(0, idx), url: line.slice(idx + 1) };
   }
   function isImageUrl_(url) { return /\.(png|jpe?g|gif|webp)(\?.*)?$/i.test(url); }
@@ -562,7 +687,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     return Array.prototype.map.call(list.querySelectorAll(".attrow"), function (row) {
       var name = row.querySelector(".attname").value.trim();
       var url = row.querySelector(".atturl").value.trim();
-      return url ? (name ? name + "|" + url : url) : null;
+      return url ? (name ? name + РАЗД + url : url) : null;
     }).filter(Boolean);
   }
 
@@ -571,11 +696,11 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     if (!list) return;
     function wireRow(row) {
       row.querySelectorAll("input").forEach(function (inp) {
-        inp.addEventListener("change", function () { saveNode_({ attachments: gatherAttachments_() }); });
+        inp.addEventListener("change", function () { saveNode_({ attachments: gatherAttachments_() }, "Вложения"); });
       });
       row.querySelector(".itemdel").addEventListener("click", function () {
         row.remove();
-        saveNode_({ attachments: gatherAttachments_() });
+        saveNode_({ attachments: gatherAttachments_() }, "Вложения");
       });
     }
     Array.prototype.forEach.call(list.querySelectorAll(".attrow"), wireRow);
@@ -594,15 +719,15 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       wireRow(row);
       document.getElementById("attNewName").value = "";
       document.getElementById("attNewUrl").value = "";
-      saveNode_({ attachments: gatherAttachments_() });
+      saveNode_({ attachments: gatherAttachments_() }, "Вложения");
     });
   }
 
-  /* ---- чек-лист: "1|текст" / "0|текст" ---- */
+  /* ---- чек-лист: done + rich-text (contenteditable), а не plain input ---- */
 
   function parseChecklistItem_(line) {
-    var idx = line.indexOf("|");
-    return idx < 0 ? { done: false, text: line } : { done: line.slice(0, idx) === "1", text: line.slice(idx + 1) };
+    var idx = line.indexOf(РАЗД);
+    return idx < 0 ? { done: false, html: line } : { done: line.slice(0, idx) === "1", html: line.slice(idx + 1) };
   }
 
   function checklistHtml_(n) {
@@ -617,37 +742,38 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
   }
 
   function checklistItemViewHtml_(it) {
-    return '<div class="citem' + (it.done ? " done" : "") + '"><input type="checkbox" disabled' + (it.done ? " checked" : "") + '><p class="ctext">' + эк(it.text) + "</p></div>";
+    return '<div class="citem' + (it.done ? " done" : "") + '"><input type="checkbox" disabled' + (it.done ? " checked" : "") + '><div class="ctext">' + (it.html || "") + "</div></div>";
   }
 
   function checklistItemHtml_(it) {
     return '<div class="citem' + (it.done ? " done" : "") + '"><input type="checkbox" class="cbox"' + (it.done ? " checked" : "") + '>' +
-      '<input type="text" class="ctext chipinput" value="' + эк(it.text) + '">' +
+      '<div class="ctext editable" contenteditable="true" data-checklist>' + (it.html || "") + "</div>" +
       '<button type="button" class="itemdel" aria-label="Удалить">×</button></div>';
   }
 
-  function gatherChecklist_() {
+  function saveChecklist_() {
     var list = document.getElementById("list-checklist");
-    if (!list) return [];
-    return Array.prototype.map.call(list.querySelectorAll(".citem"), function (row) {
-      var text = row.querySelector(".ctext").value.trim();
+    if (!list) return;
+    var items = Array.prototype.map.call(list.querySelectorAll(".citem"), function (row) {
+      var html = sanitizeHtml_(row.querySelector(".ctext").innerHTML);
+      if (!plainText_(html)) return null;
       var done = row.querySelector(".cbox").checked;
-      return text ? (done ? "1|" : "0|") + text : null;
+      return (done ? "1" : "0") + РАЗД + html;
     }).filter(Boolean);
+    saveNode_({ checklist: items }, "Чеклист");
   }
 
   function wireChecklist_() {
     var list = document.getElementById("list-checklist");
     if (!list) return;
     function wireRow(row) {
-      row.querySelector(".ctext").addEventListener("change", function () { saveNode_({ checklist: gatherChecklist_() }); });
       row.querySelector(".cbox").addEventListener("change", function () {
         row.classList.toggle("done", row.querySelector(".cbox").checked);
-        saveNode_({ checklist: gatherChecklist_() });
+        saveChecklist_();
       });
       row.querySelector(".itemdel").addEventListener("click", function () {
         row.remove();
-        saveNode_({ checklist: gatherChecklist_() });
+        saveChecklist_();
       });
     }
     Array.prototype.forEach.call(list.querySelectorAll(".citem"), wireRow);
@@ -657,7 +783,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       var hint = list.querySelector(".empty-hint");
       if (hint) hint.remove();
       var wrap = document.createElement("div");
-      wrap.innerHTML = checklistItemHtml_({ done: false, text: "" });
+      wrap.innerHTML = checklistItemHtml_({ done: false, html: "" });
       var row = wrap.firstChild;
       list.appendChild(row);
       wireRow(row);
@@ -665,14 +791,28 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     });
   }
 
-  /* ---- история: только то, что реально фиксируется (без полного лога) ---- */
+  /* ---- история: реальный, но ограниченный журнал (последние 50 записей) ---- */
 
   function historyHtml_(n) {
-    return '<div class="hist">' +
-      (n.updatedAt
-        ? "<p>Последнее изменение: <b>" + эк(n.updatedAt) + "</b>" + (n.updatedBy ? " · " + эк(n.updatedBy) : "") + "</p>"
-        : '<p class="empty-hint">Изменений ещё не было</p>') +
-      '<p class="note">Полной истории версий страница не ведёт — только дату и автора последней правки.</p></div>';
+    var lines = (n.history || []).slice().reverse();
+    if (!lines.length) {
+      return '<div class="hist"><p class="empty-hint">Изменений ещё не было</p></div>';
+    }
+    var rows = lines.map(function (line) {
+      var parts = line.split(РАЗД);
+      var when = fmtHistoryDate_(parts[0]);
+      var who = parts[1] || "";
+      var what = parts[2] || "Изменено";
+      return '<div class="histrow"><b>' + эк(what) + "</b><span>" + эк(when) + (who ? " · " + эк(who) : "") + "</span></div>";
+    }).join("");
+    return '<div class="hist"><div class="histlist">' + rows + "</div>" +
+      '<p class="note">Показаны последние ' + lines.length + " запис" + (lines.length === 1 ? "ь" : lines.length < 5 ? "и" : "ей") + " — журнал хранит не более 50.</p></div>";
+  }
+
+  function fmtHistoryDate_(iso) {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return iso || "";
+    return d.toLocaleString("ru-RU");
   }
 
   document.getElementById("toTop").addEventListener("click", function () {

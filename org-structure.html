@@ -97,6 +97,24 @@ ul.plain li::before{content:"— "}
   border:1px dashed var(--it-mint);border-radius:10px;padding:7px 12px;cursor:pointer}
 .chipadd:hover{background:rgba(122,193,168,.1)}
 
+/* rich text — общий плавающий тулбар применяется к любому .editable:
+   миссии/заметкам и к каждому пункту списка (домены/обязанности/лидер круга) */
+.editable{outline:none;cursor:text}
+.editable:focus{border-color:var(--it-teal)}
+.chiprow .chipinput.editable{min-height:1.3em;padding:8px 10px}
+.rte{width:100%;min-height:64px;font:400 14px/1.5 var(--font-body);color:var(--it-ink);
+  background:var(--it-white);border:1px solid var(--it-line);border-radius:10px;padding:9px 11px}
+.rte:focus{border-color:var(--it-teal)}
+.rtbar.floating{position:sticky;top:16px;z-index:9;background:var(--it-white);border:1px solid var(--it-line);
+  border-radius:10px;box-shadow:var(--shadow-sm);padding:6px 8px;margin:0 0 14px;display:none;width:max-content}
+.rtbar.floating.show{display:flex}
+.rtbar{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.rtbar button{width:28px;height:28px;border:1px solid var(--it-line);background:var(--it-white);
+  border-radius:6px;cursor:pointer;font:600 12px var(--font-body);color:var(--it-ink-soft)}
+.rtbar button:hover{background:var(--it-paper)}
+.rtbar input[type=color]{width:28px;height:28px;border:1px solid var(--it-line);border-radius:6px;
+  padding:2px;background:var(--it-white);cursor:pointer}
+
 .actions{margin-top:20px;display:flex;flex-direction:column;gap:8px}
 .btn{font:600 14px var(--font-body);border:1px solid var(--it-teal);background:var(--it-white);
   color:var(--it-teal);border-radius:10px;padding:9px 14px;cursor:pointer;text-align:left;
@@ -156,6 +174,110 @@ ul.plain li::before{content:"— "}
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
+  }
+
+  function sanitizeHtml_(html) {
+    var el = document.createElement("div");
+    el.innerHTML = String(html || "");
+    el.querySelectorAll("script,iframe,object,embed,style,link").forEach(function (n) { n.remove(); });
+    el.querySelectorAll("*").forEach(function (n) {
+      Array.prototype.slice.call(n.attributes).forEach(function (a) {
+        if (/^on/i.test(a.name) || (a.name === "href" && /^\s*javascript:/i.test(a.value))) n.removeAttribute(a.name);
+      });
+    });
+    return el.innerHTML;
+  }
+
+  function plainText_(html) {
+    var el = document.createElement("div");
+    el.innerHTML = String(html || "");
+    return (el.textContent || "").trim();
+  }
+
+  /* Общий плавающий тулбар форматирования — один на всю страницу, работает
+     с любым .editable (миссия/заметки/пункты списков), а не с одним полем.
+     mousedown на кнопках — всегда preventDefault, иначе клик по кнопке сам
+     уводит фокус с редактируемого поля раньше, чем сработает форматирование. */
+  var ACTIVE_EDITABLE = null;
+  var SAVED_RANGE = null;
+
+  function floatBarHtml_() {
+    return '<div class="rtbar floating" id="floatBar">' +
+      '<button type="button" data-cmd="bold" title="Жирный"><b>Ж</b></button>' +
+      '<button type="button" data-cmd="italic" title="Курсив"><i>К</i></button>' +
+      '<button type="button" data-cmd="justifyLeft" title="По левому краю">⇤</button>' +
+      '<button type="button" data-cmd="justifyCenter" title="По центру">⇔</button>' +
+      '<button type="button" data-cmd="justifyRight" title="По правому краю">⇥</button>' +
+      '<button type="button" data-cmd="justifyFull" title="По ширине">☰</button>' +
+      '<input type="color" data-cmd="foreColor" title="Цвет текста" value="#1C2622">' +
+      "</div>";
+  }
+
+  function wireFloatBar_() {
+    var bar = document.getElementById("floatBar");
+    if (!bar || bar.dataset.wired) return;
+    bar.dataset.wired = "1";
+
+    function getRange_() {
+      var sel = window.getSelection();
+      return sel && sel.rangeCount ? sel.getRangeAt(0).cloneRange() : null;
+    }
+    function restoreRange_(r) {
+      if (!r) return;
+      var sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(r);
+    }
+
+    bar.querySelectorAll("[data-cmd]").forEach(function (ctrl) {
+      var cmd = ctrl.dataset.cmd;
+      if (ctrl.tagName === "INPUT") {
+        ctrl.addEventListener("mousedown", function () { SAVED_RANGE = getRange_(); });
+        ctrl.addEventListener("input", function () {
+          if (!ACTIVE_EDITABLE) return;
+          ACTIVE_EDITABLE.focus();
+          restoreRange_(SAVED_RANGE);
+          document.execCommand(cmd, false, ctrl.value);
+        });
+      } else {
+        ctrl.addEventListener("mousedown", function (e) { e.preventDefault(); });
+        ctrl.addEventListener("click", function () {
+          if (!ACTIVE_EDITABLE) return;
+          ACTIVE_EDITABLE.focus();
+          document.execCommand(cmd, false, null);
+        });
+      }
+    });
+  }
+
+  document.addEventListener("focusin", function (e) {
+    var el = e.target.closest && e.target.closest(".editable");
+    if (!el) return;
+    ACTIVE_EDITABLE = el;
+    var bar = document.getElementById("floatBar");
+    if (bar) bar.classList.add("show");
+  });
+
+  document.addEventListener("focusout", function (e) {
+    var el = e.target.closest && e.target.closest(".editable");
+    if (!el) return;
+    saveEditable_(el);
+    setTimeout(function () {
+      var a = document.activeElement;
+      var stillEditing = a && a.closest && a.closest(".editable");
+      var bar = document.getElementById("floatBar");
+      var inToolbar = a && bar && bar.contains(a);
+      if (!stillEditing && !inToolbar) { if (bar) bar.classList.remove("show"); ACTIVE_EDITABLE = null; }
+    }, 0);
+  });
+
+  function saveEditable_(el) {
+    if (el.dataset.field) {
+      var o = {}; o[el.dataset.field] = sanitizeHtml_(el.innerHTML);
+      saveCurrentNode(o, el.dataset.field === "purpose" ? "Миссия" : "Заметки");
+    } else if (el.dataset.list) {
+      saveListField_(el.dataset.list);
+    }
   }
 
   (function () {
@@ -367,7 +489,7 @@ ul.plain li::before{content:"— "}
     if (!ЭТО_АДМИН) return;
 
     $("#fName").addEventListener("change", function () {
-      var payload = Object.assign({}, n, { id: id, name: $("#fName").value.trim() });
+      var payload = Object.assign({}, n, { id: id, name: $("#fName").value.trim(), changeLabel: "Название" });
       orgAction("orgUpdateFields", payload, function (ok, resOrWhy) {
         if (!ok) { alert("Не сохранилось: " + resOrWhy); return; }
         n.name = payload.name; render();
@@ -378,26 +500,24 @@ ul.plain li::before{content:"— "}
   }
 
   function renderCirclePanel_(id, n) {
-    var ro = ЭТО_АДМИН ? "" : " readonly";
     var panel = $("#panel");
     panel.innerHTML =
       '<div class="kind">Круг' + (id === "root" ? " · корень" : "") + '</div>' +
-      '<div class="f"><label>Название</label><input id="fName" type="text" value="' + эк(n.name) + '"' + ro + '></div>' +
+      (ЭТО_АДМИН ? floatBarHtml_() : "") +
+      '<div class="f"><label>Название</label><input id="fName" type="text" value="' + эк(n.name) + '"' + (ЭТО_АДМИН ? "" : " readonly") + '></div>' +
       '<div class="f"><label>Лидер круга</label>' + listFieldHtml_("assignees", n.assignees || [], "Имя или почта") + '</div>' +
-      '<div class="f"><label>Миссия</label><textarea id="fPurpose"' + ro + '>' + эк(n.purpose) + '</textarea></div>' +
+      '<div class="f"><label>Миссия</label>' + richFieldHtml_("purpose", n.purpose) + '</div>' +
       '<div class="f"><label>Домены</label>' + listFieldHtml_("domains", n.domains || []) + '</div>' +
       '<div class="f"><label>Зоны ответственности</label>' + listFieldHtml_("accountabilities", n.accountabilities || []) + '</div>' +
-      '<div class="f"><label>Заметки</label><textarea id="fNotes"' + ro + '>' + эк(n.notes) + '</textarea></div>' +
+      '<div class="f"><label>Заметки</label>' + richFieldHtml_("notes", n.notes) + '</div>' +
       (n.updatedAt ? '<div class="meta">Обновлено ' + эк(n.updatedAt) + (n.updatedBy ? " · " + эк(n.updatedBy) : "") + '</div>' : "") +
       '<div class="actions" id="panelActions"></div>';
 
     var actions = $("#panelActions");
 
     if (ЭТО_АДМИН) {
-      ["fName", "fPurpose", "fNotes"].forEach(function (fid) {
-        var el = $("#" + fid);
-        if (el) el.addEventListener("change", function () { saveCurrentNode(); });
-      });
+      wireFloatBar_();
+      $("#fName").addEventListener("change", function () { saveCurrentNode({ name: $("#fName").value.trim() }, "Название"); });
       wireChipField_(panel, "assignees");
       wireChipField_(panel, "domains");
       wireChipField_(panel, "accountabilities");
@@ -405,6 +525,11 @@ ul.plain li::before{content:"— "}
     }
 
     appendMoveDeleteActions_(actions, id, n);
+  }
+
+  function richFieldHtml_(fieldKey, html) {
+    if (!ЭТО_АДМИН) return '<div class="ph" style="font-size:14px">' + (html || '<span style="opacity:.6">—</span>') + '</div>';
+    return '<div class="rte editable" data-field="' + fieldKey + '" contenteditable="true">' + (html || "") + '</div>';
   }
 
   function appendAddButtons_(actions, parentId) {
@@ -455,12 +580,16 @@ ul.plain li::before{content:"— "}
     actions.appendChild(delBtn);
   }
 
-  /* Домены/зоны ответственности/исполнители — списки, редактируемые по
-     одному пункту через "+", а не одной многострочной textarea. */
+  /* Домены/зоны ответственности/лидер круга — списки, редактируемые по
+     одному пункту через "+" (а не одной многострочной textarea), и каждый
+     пункт — contenteditable, чтобы его тоже можно было форматировать общим
+     плавающим тулбаром. */
+  var LIST_TITLES_ = { domains: "Домены", accountabilities: "Зоны ответственности", assignees: "Лидер круга" };
+
   function listFieldHtml_(fieldKey, items, hint) {
     if (!ЭТО_АДМИН) {
       if (!items.length) return '<p class="ph" style="font-size:13px">—</p>';
-      return '<ul class="plain">' + items.map(function (v) { return "<li>" + эк(v) + "</li>"; }).join("") + "</ul>";
+      return '<ul class="plain">' + items.map(function (v) { return "<li>" + v + "</li>"; }).join("") + "</ul>";
     }
     var rows = items.map(function (v) { return chipRowHtml_(fieldKey, v); }).join("");
     return '<div class="chiplist" id="list-' + fieldKey + '">' + rows + "</div>" +
@@ -468,38 +597,45 @@ ul.plain li::before{content:"— "}
       (hint ? '<div class="hint">' + hint + "</div>" : "");
   }
 
-  function chipRowHtml_(fieldKey, value) {
-    return '<div class="chiprow"><input type="text" class="chipinput" data-field="' + fieldKey +
-      '" value="' + эк(value || "") + '"><button type="button" class="chipdel" aria-label="Удалить">×</button></div>';
+  function chipRowHtml_(fieldKey, html) {
+    return '<div class="chiprow"><div class="chipinput editable" contenteditable="true" data-list="' + fieldKey +
+      '">' + (html || "") + '</div><button type="button" class="chipdel" aria-label="Удалить">×</button></div>';
   }
 
-  function wireChip_(row) {
-    row.querySelector(".chipinput").addEventListener("change", function () { saveCurrentNode(); });
-    row.querySelector(".chipdel").addEventListener("click", function () { row.remove(); saveCurrentNode(); });
+  function wireChip_(row, fieldKey) {
+    row.querySelector(".chipdel").addEventListener("click", function () {
+      row.remove();
+      saveListField_(fieldKey);
+    });
   }
 
   function wireChipField_(panel, fieldKey) {
     var list = panel.querySelector("#list-" + fieldKey);
     if (!list) return;
-    Array.prototype.forEach.call(list.querySelectorAll(".chiprow"), wireChip_);
+    Array.prototype.forEach.call(list.querySelectorAll(".chiprow"), function (row) { wireChip_(row, fieldKey); });
     var addBtn = panel.querySelector('.chipadd[data-field="' + fieldKey + '"]');
     if (!addBtn) return;
     addBtn.addEventListener("click", function () {
-      var row = document.createElement("div");
-      row.innerHTML = chipRowHtml_(fieldKey, "");
-      row = row.firstChild;
+      var wrap = document.createElement("div");
+      wrap.innerHTML = chipRowHtml_(fieldKey, "");
+      var row = wrap.firstChild;
       list.appendChild(row);
-      wireChip_(row);
-      row.querySelector(".chipinput").focus();
+      wireChip_(row, fieldKey);
+      row.querySelector(".editable").focus();
     });
   }
 
   function gatherChips_(fieldKey) {
     var list = document.getElementById("list-" + fieldKey);
     if (!list) return [];
-    return Array.prototype.map.call(list.querySelectorAll(".chipinput"), function (el) {
-      return el.value.trim();
-    }).filter(Boolean);
+    return Array.prototype.map.call(list.querySelectorAll(".editable"), function (el) {
+      return sanitizeHtml_(el.innerHTML);
+    }).filter(function (html) { return plainText_(html); });
+  }
+
+  function saveListField_(fieldKey) {
+    var o = {}; o[fieldKey] = gatherChips_(fieldKey);
+    saveCurrentNode(o, LIST_TITLES_[fieldKey] || fieldKey);
   }
 
   function moveOptionsHtml(excludeId) {
@@ -510,23 +646,14 @@ ul.plain li::before{content:"— "}
     }).join("");
   }
 
-  function saveCurrentNode() {
+  function saveCurrentNode(overrides, changeLabel) {
     if (!SELECTED || !ЭТО_АДМИН) return;
     var id = SELECTED;
-    var payload = {
-      id: id,
-      name: $("#fName").value.trim(),
-      purpose: $("#fPurpose").value,
-      domains: gatherChips_("domains"),
-      accountabilities: gatherChips_("accountabilities"),
-      notes: $("#fNotes").value,
-      assignees: document.getElementById("list-assignees") ? gatherChips_("assignees") : []
-    };
+    var n = NODES[id];
+    var payload = Object.assign({}, n, overrides, { id: id, changeLabel: changeLabel || "Изменено" });
     orgAction("orgUpdateFields", payload, function (ok, resOrWhy) {
       if (!ok) { alert("Не сохранилось: " + resOrWhy); return; }
-      var n = NODES[id];
-      n.name = payload.name; n.purpose = payload.purpose; n.domains = payload.domains;
-      n.accountabilities = payload.accountabilities; n.notes = payload.notes; n.assignees = payload.assignees;
+      Object.assign(n, overrides);
       render();
     });
   }
