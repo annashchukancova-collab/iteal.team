@@ -102,7 +102,7 @@ ul.plain li::before{content:"— "}
 .editable{outline:none;cursor:text}
 .editable:focus{border-color:var(--it-teal)}
 .chiprow .chipinput.editable{min-height:1.3em;padding:8px 10px}
-.rte{width:100%;min-height:64px;font:400 14px/1.5 var(--font-body);color:var(--it-ink);
+.rte{width:100%;min-height:1.6em;font:400 14px/1.5 var(--font-body);color:var(--it-ink);
   background:var(--it-white);border:1px solid var(--it-line);border-radius:10px;padding:9px 11px}
 .rte:focus{border-color:var(--it-teal)}
 .rtbar.floating{position:sticky;top:16px;z-index:9;background:var(--it-white);border:1px solid var(--it-line);
@@ -205,6 +205,10 @@ ul.plain li::before{content:"— "}
     return '<div class="rtbar floating" id="floatBar">' +
       '<button type="button" data-cmd="bold" title="Жирный"><b>Ж</b></button>' +
       '<button type="button" data-cmd="italic" title="Курсив"><i>К</i></button>' +
+      '<button type="button" data-cmd="insertUnorderedList" title="Маркированный список">☰•</button>' +
+      '<button type="button" data-cmd="insertOrderedList" title="Нумерованный список">☰1</button>' +
+      '<button type="button" data-cmd="outdent" title="Уменьшить уровень списка">⇤¶</button>' +
+      '<button type="button" data-cmd="indent" title="Увеличить уровень списка (вложенность)">⇥¶</button>' +
       '<button type="button" data-cmd="justifyLeft" title="По левому краю">⇤</button>' +
       '<button type="button" data-cmd="justifyCenter" title="По центру">⇔</button>' +
       '<button type="button" data-cmd="justifyRight" title="По правому краю">⇥</button>' +

@@ -103,7 +103,7 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:40px;line-height:1.
   padding:2px;background:var(--it-white);cursor:pointer}
 .rtbar.on-teal button{background:rgba(255,255,255,.14);color:#fff;border-color:rgba(255,255,255,.4)}
 .rtbar.on-teal button:hover{background:rgba(255,255,255,.24)}
-.rte{min-height:90px;border:1px solid var(--it-line);border-radius:var(--radius-sm);padding:10px 12px;
+.rte{min-height:1.6em;height:auto;border:1px solid var(--it-line);border-radius:var(--radius-sm);padding:10px 12px;
   font:400 15px/1.5 var(--font-body);color:var(--it-ink);background:var(--it-white)}
 .rte:focus{outline:none;border-color:var(--it-teal)}
 .rte.on-teal{color:#fff;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.3);
@@ -160,6 +160,22 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:40px;line-height:1.
 .histrow b{color:var(--it-ink);font-size:14.5px}
 .histrow span{color:var(--it-grey);font-size:12.5px}
 
+.titlebar{display:flex;align-items:center;gap:10px}
+.pencil-btn{width:28px;height:28px;border:1px solid var(--it-line);background:var(--it-white);
+  border-radius:8px;cursor:pointer;font-size:13px;color:var(--it-teal);display:inline-flex;
+  align-items:center;justify-content:center;padding:0}
+.pencil-btn:hover{background:var(--it-paper);border-color:var(--it-teal)}
+.btn{font:600 14px var(--font-body);border:1px solid var(--it-teal);background:var(--it-white);
+  color:var(--it-teal);border-radius:var(--radius-sm);padding:10px 18px;cursor:pointer}
+.btn:hover{background:rgba(122,193,168,.1)}
+.btn.pri{background:var(--it-teal);color:#fff;border-color:var(--it-teal)}
+.btn.pri:hover{background:var(--it-teal-deep)}
+.btn:disabled{opacity:.6;cursor:default}
+.savebar{position:sticky;bottom:16px;display:flex;gap:10px;margin-top:36px;padding:14px 18px;
+  background:var(--it-white);border:1px solid var(--it-line);border-radius:var(--radius-md);
+  box-shadow:var(--shadow-md)}
+
+
 
 footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font-size:13px;color:var(--it-grey)}
 
@@ -203,6 +219,11 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
   var CURRENT = null;
   var ACTIVE_TAB = "overview";
   var РАЗД = String.fromCharCode(31);
+  /* Явный режим просмотр/редактирование — по умолчанию всегда чистый
+     просмотр, даже для админа. Карандашик над названием включает
+     редактирование; "Сохранить" разом отправляет все поля и возвращает
+     обратно в просмотр (кнопки "+"/удалить и т.д. в просмотре не видны). */
+  var EDITING = false;
 
   var $ = function (s) { return document.querySelector(s); };
   function эк(s) {
@@ -211,10 +232,6 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     });
   }
 
-  /* Минимальная защита: rich-текст приходит через execCommand в
-     contenteditable, но перед сохранением на всякий случай вырезаем теги/
-     атрибуты, которые не могли появиться сами — если кто-то руками
-     подсунет мусор через консоль браузера. */
   function sanitizeHtml_(html) {
     var el = document.createElement("div");
     el.innerHTML = String(html || "");
@@ -293,25 +310,34 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     }, 15000);
   }
 
-  /* Сохранение — тихое, в фоне, БЕЗ перестройки всей карточки. Раньше после
-     каждого сохранения вызывался полный ререндер, и это ломало сразу два
-     сценария: клик по кнопке форматирования (mousedown уводил фокус с
-     contenteditable → преждевременный blur → сохранение → перестройка DOM
-     ДО того, как успевал сработать сам click с execCommand) и кнопки "+"
-     в списках (та же гонка). Теперь после сохранения только обновляем
-     CURRENT в памяти и — точечно — вкладку "История", ничего больше не
-     трогаем на экране. */
-  function saveNode_(overrides, changeLabel, cb) {
-    var payload = Object.assign({}, CURRENT, overrides, { id: ID, changeLabel: changeLabel || "Изменено" });
-    orgAction("orgUpdateFields", payload, function (ok, resOrWhy) {
+  /* Одно сохранение разом — по кнопке "Сохранить", а не на каждый blur.
+     Собирает всё, что сейчас есть в DOM (режим редактирования держит все
+     вкладки в DOM одновременно, просто скрытые — так что читать поля можно
+     независимо от того, какая вкладка сейчас открыта). */
+  function saveAll_(cb) {
+    var payload = {
+      name: $("#fName").value.trim(),
+      purpose: sanitizeHtml_(document.querySelector('[data-field="purpose"]').innerHTML),
+      notes: sanitizeHtml_(document.querySelector('[data-field="notes"]').innerHTML),
+      domains: gatherList_("domains"),
+      accountabilities: gatherList_("accountabilities"),
+      policies: gatherList_("policies"),
+      projects: gatherList_("projects"),
+      goals: gatherList_("goals"),
+      metrics: gatherList_("metrics"),
+      assignees: gatherTags_("assignees"),
+      checklist: gatherChecklist_(),
+      attachments: gatherAttachments_()
+    };
+    var merged = Object.assign({}, CURRENT, payload, { id: ID, changeLabel: "Изменено" });
+    orgAction("orgUpdateFields", merged, function (ok, resOrWhy) {
       if (ok) {
-        CURRENT = Object.assign({}, CURRENT, overrides);
+        CURRENT = Object.assign({}, CURRENT, payload);
         CURRENT.updatedAt = new Date().toLocaleString("ru-RU");
         CURRENT.updatedBy = ТЕКУЩАЯ_ПОЧТА;
         CURRENT.history = (CURRENT.history || []).concat([
-          [new Date().toISOString(), ТЕКУЩАЯ_ПОЧТА, changeLabel || "Изменено"].join(РАЗД)
+          [new Date().toISOString(), ТЕКУЩАЯ_ПОЧТА, "Изменено"].join(РАЗД)
         ]);
-        refreshHistoryPanel_();
       } else {
         alert("Не сохранилось: " + resOrWhy);
       }
@@ -319,17 +345,12 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     });
   }
 
-  function refreshHistoryPanel_() {
-    var panel = document.querySelector('[data-panel="history"]');
-    if (panel) panel.innerHTML = historyHtml_(CURRENT);
-  }
-
   /* ------------------------------  общий плавающий тулбар  ----------------- */
   /* Один тулбар на всю страницу вместо отдельного под каждым полем —
-     появляется рядом с любым полем, куда встал курсор (contenteditable
-     с классом .editable), и форматирует именно его. mousedown на кнопках
-     тулбара всегда preventDefault — иначе клик по кнопке сам уводит фокус
-     с поля до того, как успеет сработать форматирование. */
+     появляется рядом с любым полем, куда встал курсор (.editable), и
+     форматирует именно его. mousedown на кнопках — всегда preventDefault,
+     иначе клик по кнопке сам уводит фокус с поля раньше, чем успевает
+     сработать форматирование. */
 
   var ACTIVE_EDITABLE = null;
   var SAVED_RANGE = null;
@@ -338,6 +359,10 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     return '<div class="rtbar floating" id="floatBar">' +
       '<button type="button" data-cmd="bold" title="Жирный"><b>Ж</b></button>' +
       '<button type="button" data-cmd="italic" title="Курсив"><i>К</i></button>' +
+      '<button type="button" data-cmd="insertUnorderedList" title="Маркированный список">☰•</button>' +
+      '<button type="button" data-cmd="insertOrderedList" title="Нумерованный список">☰1</button>' +
+      '<button type="button" data-cmd="outdent" title="Уменьшить уровень списка">⇤¶</button>' +
+      '<button type="button" data-cmd="indent" title="Увеличить уровень списка (вложенность)">⇥¶</button>' +
       '<button type="button" data-cmd="justifyLeft" title="По левому краю">⇤</button>' +
       '<button type="button" data-cmd="justifyCenter" title="По центру">⇔</button>' +
       '<button type="button" data-cmd="justifyRight" title="По правому краю">⇥</button>' +
@@ -387,8 +412,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     if (!bar) return;
     ACTIVE_EDITABLE = el;
     bar.classList.add("show");
-    var onTeal = el.classList.contains("on-teal");
-    bar.classList.toggle("on-teal", onTeal);
+    bar.classList.toggle("on-teal", el.classList.contains("on-teal"));
   }
 
   function hideFloatBar_() {
@@ -406,7 +430,6 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
   document.addEventListener("focusout", function (e) {
     var el = e.target.closest && e.target.closest(".editable");
     if (!el) return;
-    saveEditable_(el);
     setTimeout(function () {
       var a = document.activeElement;
       var stillEditing = a && a.closest && a.closest(".editable");
@@ -415,18 +438,6 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       if (!stillEditing && !inToolbar) hideFloatBar_();
     }, 0);
   });
-
-  function saveEditable_(el) {
-    var html = sanitizeHtml_(el.innerHTML);
-    if (el.dataset.field) {
-      var o = {}; o[el.dataset.field] = html;
-      saveNode_(o, el.dataset.field === "purpose" ? "Миссия" : "Примечания");
-    } else if (el.dataset.list) {
-      saveListField_(el.dataset.list);
-    } else if (el.dataset.checklist !== undefined) {
-      saveChecklist_();
-    }
-  }
 
   /* ------------------------------  карточка и вкладки  --------------------- */
 
@@ -443,25 +454,28 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
 
   function buildCard_(n) {
     document.title = n.name + " — роль в iTeal";
-    var admin = ЭТО_АДМИН;
+    var editing = ЭТО_АДМИН && EDITING;
     var html =
-      '<p class="kicker">Роль в iTeal</p>' +
-      (admin ? '<input class="h1input" id="fName" type="text" value="' + эк(n.name) + '">' : "<h1>" + эк(n.name) + "</h1>") +
+      '<div class="titlebar"><p class="kicker">Роль в iTeal</p>' +
+      (ЭТО_АДМИН && !editing ? '<button type="button" class="pencil-btn" id="editToggle" title="Редактировать" aria-label="Редактировать">✎</button>' : "") +
+      "</div>" +
+      (editing ? '<input class="h1input" id="fName" type="text" value="' + эк(n.name) + '">' : "<h1>" + эк(n.name) + "</h1>") +
       '<div class="rule"></div>' +
-      (admin ? floatBarHtml_() : "") +
+      (editing ? floatBarHtml_() : "") +
       heroHtml_(n) +
-      assigneesHtml_(n) +
+      assigneesHtml_(n, editing) +
       '<div class="tabs" id="tabs">' + TABS.map(function (t) {
         return '<button type="button" class="tab' + (t.key === ACTIVE_TAB ? " on" : "") + '" data-tab="' + t.key + '">' + t.label + "</button>";
       }).join("") + "</div>" +
-      '<div class="tabpanel' + (ACTIVE_TAB === "overview" ? " on" : "") + '" data-panel="overview">' + overviewHtml_(n) + "</div>" +
-      '<div class="tabpanel' + (ACTIVE_TAB === "policies" ? " on" : "") + '" data-panel="policies">' + listSectionHtml_("policies", n.policies || []) + "</div>" +
-      '<div class="tabpanel' + (ACTIVE_TAB === "notes" ? " on" : "") + '" data-panel="notes">' + notesTabHtml_(n) + "</div>" +
-      '<div class="tabpanel' + (ACTIVE_TAB === "projects" ? " on" : "") + '" data-panel="projects">' + listSectionHtml_("projects", n.projects || []) + "</div>" +
-      '<div class="tabpanel' + (ACTIVE_TAB === "checklist" ? " on" : "") + '" data-panel="checklist">' + checklistHtml_(n) + "</div>" +
-      '<div class="tabpanel' + (ACTIVE_TAB === "goals" ? " on" : "") + '" data-panel="goals">' + listSectionHtml_("goals", n.goals || []) + "</div>" +
-      '<div class="tabpanel' + (ACTIVE_TAB === "metrics" ? " on" : "") + '" data-panel="metrics">' + listSectionHtml_("metrics", n.metrics || []) + "</div>" +
+      '<div class="tabpanel' + (ACTIVE_TAB === "overview" ? " on" : "") + '" data-panel="overview">' + overviewHtml_(n, editing) + "</div>" +
+      '<div class="tabpanel' + (ACTIVE_TAB === "policies" ? " on" : "") + '" data-panel="policies">' + listSectionHtml_("policies", n.policies || [], editing) + "</div>" +
+      '<div class="tabpanel' + (ACTIVE_TAB === "notes" ? " on" : "") + '" data-panel="notes">' + notesTabHtml_(n, editing) + "</div>" +
+      '<div class="tabpanel' + (ACTIVE_TAB === "projects" ? " on" : "") + '" data-panel="projects">' + listSectionHtml_("projects", n.projects || [], editing) + "</div>" +
+      '<div class="tabpanel' + (ACTIVE_TAB === "checklist" ? " on" : "") + '" data-panel="checklist">' + checklistHtml_(n, editing) + "</div>" +
+      '<div class="tabpanel' + (ACTIVE_TAB === "goals" ? " on" : "") + '" data-panel="goals">' + listSectionHtml_("goals", n.goals || [], editing) + "</div>" +
+      '<div class="tabpanel' + (ACTIVE_TAB === "metrics" ? " on" : "") + '" data-panel="metrics">' + listSectionHtml_("metrics", n.metrics || [], editing) + "</div>" +
       '<div class="tabpanel' + (ACTIVE_TAB === "history" ? " on" : "") + '" data-panel="history">' + historyHtml_(n) + "</div>" +
+      (editing ? '<div class="savebar"><button type="button" class="btn pri" id="saveAllBtn">Сохранить</button><button type="button" class="btn" id="cancelEditBtn">Отмена</button></div>' : "") +
       "<footer>iTeal — Connect people &amp; computers</footer>";
     $("#card").innerHTML = html;
 
@@ -473,9 +487,11 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       });
     });
 
-    if (!admin) return;
+    var toggle = document.getElementById("editToggle");
+    if (toggle) toggle.addEventListener("click", function () { EDITING = true; buildCard_(CURRENT); });
 
-    $("#fName").addEventListener("change", function () { saveNode_({ name: $("#fName").value.trim() }, "Название"); });
+    if (!editing) return;
+
     wireFloatBar_();
     wireTagField_("assignees");
     wireListField_("domains");
@@ -486,15 +502,29 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     wireListField_("metrics");
     wireChecklist_();
     wireAttachments_();
+
+    document.getElementById("saveAllBtn").addEventListener("click", function (e) {
+      var btn = e.currentTarget;
+      btn.disabled = true; btn.textContent = "Сохраняю…";
+      saveAll_(function (ok) {
+        if (!ok) { btn.disabled = false; btn.textContent = "Сохранить"; return; }
+        EDITING = false;
+        buildCard_(CURRENT);
+      });
+    });
+    document.getElementById("cancelEditBtn").addEventListener("click", function () {
+      EDITING = false;
+      buildCard_(CURRENT);
+    });
   }
 
   function heroHtml_(n) {
     return n.photo ? '<div class="hero"><img src="' + n.photo + '" alt=""></div>' : "";
   }
 
-  function assigneesHtml_(n) {
+  function assigneesHtml_(n, editing) {
     var items = n.assignees || [];
-    if (!ЭТО_АДМИН) {
+    if (!editing) {
       if (!items.length) return "";
       return '<p class="assignees"><b>Исполнители:</b> ' + items.map(эк).join(", ") + "</p>";
     }
@@ -509,17 +539,42 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       '"><button type="button" class="tagdel" aria-label="Удалить">×</button></span>';
   }
 
-  /* ---- Обзор: миссия (rich text) + домены + обязанности (тоже rich text) ---- */
-
-  function overviewHtml_(n) {
-    return richFieldSectionHtml_("Миссия", "purpose", n.purpose, true) +
-      '<section class="sec" style="margin-top:32px"><p class="kicker mb">Домены</p>' + listBodyHtml_("domains", n.domains || []) + "</section>" +
-      '<section class="sec" style="margin-top:32px"><p class="kicker mb">Обязанности</p>' + listBodyHtml_("accountabilities", n.accountabilities || []) + "</section>";
+  function gatherTags_(fieldKey) {
+    var list = document.getElementById("list-" + fieldKey);
+    if (!list) return [];
+    return Array.prototype.map.call(list.querySelectorAll(".chipinput"), function (el) { return el.value.trim(); }).filter(Boolean);
   }
 
-  function richFieldSectionHtml_(title, fieldKey, html, onTeal) {
-    var view = '<div class="rte-view">' + (html || '<span style="opacity:.7">—</span>') + "</div>";
-    if (!ЭТО_АДМИН) {
+  function wireTagField_(fieldKey) {
+    var list = document.getElementById("list-" + fieldKey);
+    if (!list) return;
+    var addBtn = document.querySelector('.tagadd[data-field="' + fieldKey + '"]');
+    if (addBtn) addBtn.addEventListener("click", function () {
+      var wrap = document.createElement("span");
+      wrap.innerHTML = tagHtml_("");
+      var tag = wrap.firstChild;
+      list.appendChild(tag);
+      wireTagDelete_(tag);
+      tag.querySelector(".chipinput").focus();
+    });
+    Array.prototype.forEach.call(list.querySelectorAll(".tag"), wireTagDelete_);
+  }
+
+  function wireTagDelete_(tag) {
+    tag.querySelector(".tagdel").addEventListener("click", function () { tag.remove(); });
+  }
+
+  /* ---- Обзор: миссия (rich text) + домены + обязанности (тоже rich text) ---- */
+
+  function overviewHtml_(n, editing) {
+    return richFieldSectionHtml_("Миссия", "purpose", n.purpose, true, editing) +
+      '<section class="sec" style="margin-top:32px"><p class="kicker mb">Домены</p>' + listBodyHtml_("domains", n.domains || [], editing) + "</section>" +
+      '<section class="sec" style="margin-top:32px"><p class="kicker mb">Обязанности</p>' + listBodyHtml_("accountabilities", n.accountabilities || [], editing) + "</section>";
+  }
+
+  function richFieldSectionHtml_(title, fieldKey, html, onTeal, editing) {
+    if (!editing) {
+      var view = '<div class="rte-view">' + (html || '<span style="opacity:.7">—</span>') + "</div>";
       return onTeal
         ? '<section class="mission"><p class="kicker">' + title + "</p>" + view + "</section>"
         : '<section class="sec"><p class="kicker mb">' + title + "</p>" + view + "</section>";
@@ -532,18 +587,17 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
 
   /* ---- списки через "+": домены/обязанности/политики/проекты/цели/метрики ---- */
   /* Пункты — contenteditable, а не <input>, чтобы к ним тоже применялось
-     форматирование через общий плавающий тулбар (жирный/курсив/цвет/
-     выравнивание), как попросили — не только к Миссии и Примечаниям. */
+     форматирование (включая списки/уровни) через общий плавающий тулбар. */
 
   var LIST_TITLES = { policies: "Политики", projects: "Проекты", goals: "Цели", metrics: "Метрики", domains: "Домены", accountabilities: "Обязанности" };
 
-  function listSectionHtml_(fieldKey, items) {
+  function listSectionHtml_(fieldKey, items, editing) {
     var title = LIST_TITLES[fieldKey] || fieldKey;
-    return '<section class="sec"><p class="kicker mb">' + title + "</p>" + listBodyHtml_(fieldKey, items) + "</section>";
+    return '<section class="sec"><p class="kicker mb">' + title + "</p>" + listBodyHtml_(fieldKey, items, editing) + "</section>";
   }
 
-  function listBodyHtml_(fieldKey, items) {
-    if (!ЭТО_АДМИН) {
+  function listBodyHtml_(fieldKey, items, editing) {
+    if (!editing) {
       if (!items.length) return '<p class="empty-hint">Пока пусто</p>';
       return '<div class="list">' + items.map(function (v, i) { return itemHtml_(i, v, false, fieldKey); }).join("") + "</div>";
     }
@@ -568,82 +622,44 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     });
   }
 
-  function saveListField_(fieldKey) {
+  function gatherList_(fieldKey) {
     var list = document.getElementById("list-" + fieldKey);
-    if (!list) return;
-    var items = Array.prototype.map.call(list.querySelectorAll(".editable"), function (el) {
+    if (!list) return [];
+    return Array.prototype.map.call(list.querySelectorAll(".editable"), function (el) {
       return sanitizeHtml_(el.innerHTML);
     }).filter(function (html) { return plainText_(html); });
-    var o = {}; o[fieldKey] = items;
-    saveNode_(o, LIST_TITLES[fieldKey] || fieldKey);
   }
 
   function wireListField_(fieldKey) {
     var list = document.getElementById("list-" + fieldKey);
     if (!list) return;
     var addBtn = document.querySelector('.listadd[data-field="' + fieldKey + '"]');
-    if (!addBtn) return;
-    addBtn.addEventListener("click", function () {
+    if (addBtn) addBtn.addEventListener("click", function () {
       var hint = list.querySelector(".empty-hint");
       if (hint) hint.remove();
       var wrap = document.createElement("div");
       wrap.innerHTML = itemHtml_(list.querySelectorAll(".item").length, "", true, fieldKey);
       var item = wrap.firstChild;
       list.appendChild(item);
-      wireItemDelete_(list, item, fieldKey);
+      wireItemDelete_(list, item);
       item.querySelector(".editable").focus();
     });
-    Array.prototype.forEach.call(list.querySelectorAll(".item"), function (item) { wireItemDelete_(list, item, fieldKey); });
+    Array.prototype.forEach.call(list.querySelectorAll(".item"), function (item) { wireItemDelete_(list, item); });
   }
 
-  function wireItemDelete_(list, item, fieldKey) {
+  function wireItemDelete_(list, item) {
     item.querySelector(".itemdel").addEventListener("click", function () {
       item.remove();
       renumber_(list);
-      saveListField_(fieldKey);
-    });
-  }
-
-  function wireTagField_(fieldKey) {
-    var list = document.getElementById("list-" + fieldKey);
-    if (!list) return;
-    Array.prototype.forEach.call(list.querySelectorAll(".tag"), function (tag) { wireTag_(tag, fieldKey); });
-    var addBtn = document.querySelector('.tagadd[data-field="' + fieldKey + '"]');
-    if (!addBtn) return;
-    addBtn.addEventListener("click", function () {
-      var wrap = document.createElement("span");
-      wrap.innerHTML = tagHtml_("");
-      var tag = wrap.firstChild;
-      list.appendChild(tag);
-      wireTag_(tag, fieldKey);
-      tag.querySelector(".chipinput").focus();
-    });
-  }
-
-  function gatherTags_(fieldKey) {
-    var list = document.getElementById("list-" + fieldKey);
-    if (!list) return [];
-    return Array.prototype.map.call(list.querySelectorAll(".chipinput"), function (el) { return el.value.trim(); }).filter(Boolean);
-  }
-
-  function wireTag_(tag, fieldKey) {
-    tag.querySelector(".chipinput").addEventListener("change", function () {
-      var o = {}; o[fieldKey] = gatherTags_(fieldKey);
-      saveNode_(o, "Исполнители");
-    });
-    tag.querySelector(".tagdel").addEventListener("click", function () {
-      tag.remove();
-      var o = {}; o[fieldKey] = gatherTags_(fieldKey);
-      saveNode_(o, "Исполнители");
     });
   }
 
   /* ---- примечания: rich text + вложения (ссылки на файлы/фото) ---- */
 
-  function notesTabHtml_(n) {
+  function notesTabHtml_(n, editing) {
     return '<div class="notes-wrap">' +
-      richFieldSectionHtml_("Примечания", "notes", n.notes, false) +
-      attachmentsHtml_(n) +
+      richFieldSectionHtml_("Примечания", "notes", n.notes, false, editing) +
+      attachmentsHtml_(n, editing) +
       "</div>";
   }
 
@@ -653,9 +669,9 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
   }
   function isImageUrl_(url) { return /\.(png|jpe?g|gif|webp)(\?.*)?$/i.test(url); }
 
-  function attachmentsHtml_(n) {
+  function attachmentsHtml_(n, editing) {
     var items = (n.attachments || []).map(parseAttachment_);
-    if (!ЭТО_АДМИН) {
+    if (!editing) {
       if (!items.length) return "";
       return '<section class="sec"><p class="kicker mb">Вложения</p>' +
         items.map(function (it) { return attachmentViewHtml_(it); }).join("") + "</section>";
@@ -695,13 +711,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     var list = document.getElementById("list-attachments");
     if (!list) return;
     function wireRow(row) {
-      row.querySelectorAll("input").forEach(function (inp) {
-        inp.addEventListener("change", function () { saveNode_({ attachments: gatherAttachments_() }, "Вложения"); });
-      });
-      row.querySelector(".itemdel").addEventListener("click", function () {
-        row.remove();
-        saveNode_({ attachments: gatherAttachments_() }, "Вложения");
-      });
+      row.querySelector(".itemdel").addEventListener("click", function () { row.remove(); });
     }
     Array.prototype.forEach.call(list.querySelectorAll(".attrow"), wireRow);
     var addBtn = document.getElementById("attAddBtn");
@@ -719,20 +729,19 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       wireRow(row);
       document.getElementById("attNewName").value = "";
       document.getElementById("attNewUrl").value = "";
-      saveNode_({ attachments: gatherAttachments_() }, "Вложения");
     });
   }
 
-  /* ---- чек-лист: done + rich-text (contenteditable), а не plain input ---- */
+  /* ---- чек-лист: done + rich-text (contenteditable) ---- */
 
   function parseChecklistItem_(line) {
     var idx = line.indexOf(РАЗД);
     return idx < 0 ? { done: false, html: line } : { done: line.slice(0, idx) === "1", html: line.slice(idx + 1) };
   }
 
-  function checklistHtml_(n) {
+  function checklistHtml_(n, editing) {
     var items = (n.checklist || []).map(parseChecklistItem_);
-    if (!ЭТО_АДМИН) {
+    if (!editing) {
       if (!items.length) return '<p class="empty-hint">Пока пусто</p>';
       return '<div class="list">' + items.map(checklistItemViewHtml_).join("") + "</div>";
     }
@@ -751,16 +760,15 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       '<button type="button" class="itemdel" aria-label="Удалить">×</button></div>';
   }
 
-  function saveChecklist_() {
+  function gatherChecklist_() {
     var list = document.getElementById("list-checklist");
-    if (!list) return;
-    var items = Array.prototype.map.call(list.querySelectorAll(".citem"), function (row) {
+    if (!list) return [];
+    return Array.prototype.map.call(list.querySelectorAll(".citem"), function (row) {
       var html = sanitizeHtml_(row.querySelector(".ctext").innerHTML);
       if (!plainText_(html)) return null;
       var done = row.querySelector(".cbox").checked;
       return (done ? "1" : "0") + РАЗД + html;
     }).filter(Boolean);
-    saveNode_({ checklist: items }, "Чеклист");
   }
 
   function wireChecklist_() {
@@ -769,12 +777,8 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     function wireRow(row) {
       row.querySelector(".cbox").addEventListener("change", function () {
         row.classList.toggle("done", row.querySelector(".cbox").checked);
-        saveChecklist_();
       });
-      row.querySelector(".itemdel").addEventListener("click", function () {
-        row.remove();
-        saveChecklist_();
-      });
+      row.querySelector(".itemdel").addEventListener("click", function () { row.remove(); });
     }
     Array.prototype.forEach.call(list.querySelectorAll(".citem"), wireRow);
     var addBtn = document.getElementById("checklistAddBtn");
