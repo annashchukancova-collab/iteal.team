@@ -74,9 +74,10 @@ h1{font:700 32px/1.15 var(--font-heading);color:var(--it-teal-deep);margin:16px 
   border-radius:50%;color:var(--it-grey);cursor:pointer;font-size:13px;line-height:1;padding:0;margin-right:4px}
 .teamtable .iconbtn:hover{border-color:var(--it-teal);color:var(--it-teal-deep)}
 .teamtable .iconbtn.danger:hover{border-color:#B4483C;color:#93372C}
-.teamtable input{width:100%;min-width:110px;font:400 13.5px var(--font-body);color:var(--it-ink);
-  background:var(--it-paper);border:1px solid var(--it-line);border-radius:6px;padding:6px 8px}
-.teamtable input:focus{outline:none;border-color:var(--it-teal)}
+.teamtable input,.teamtable select{width:100%;min-width:130px;font:400 14.5px var(--font-body);color:var(--it-ink);
+  background:var(--it-paper);border:1px solid var(--it-line);border-radius:6px;padding:8px 10px;cursor:default}
+.teamtable select{cursor:pointer}
+.teamtable input:focus,.teamtable select:focus{outline:none;border-color:var(--it-teal)}
 #teamAddBtn{margin:14px}
 .subhead{font:700 13px var(--font-heading);text-transform:uppercase;letter-spacing:.06em;
   color:var(--it-grey);margin:36px 0 12px}
@@ -201,6 +202,7 @@ document.getElementById("hubNav").querySelectorAll("a").forEach(function (a) {
   })();
   var ЭТО_АДМИН = АДМИНЫ.indexOf(ТЕКУЩАЯ_ПОЧТА) !== -1;
   var MEMBERS = [];
+  var MY_NAME = "";
   var LOADED = false;
 
   function эк(s) {
@@ -251,6 +253,8 @@ document.getElementById("hubNav").querySelectorAll("a").forEach(function (a) {
         return;
       }
       MEMBERS = res.members || [];
+      var me = MEMBERS.filter(function (m) { return String(m.mail || "").trim().toLowerCase() === ТЕКУЩАЯ_ПОЧТА; })[0];
+      MY_NAME = me ? me.name : "";
       document.getElementById("teamStatus").hidden = true;
       document.getElementById("teamTableWrap").hidden = false;
       renderTeam_();
@@ -440,13 +444,22 @@ document.getElementById("hubNav").querySelectorAll("a").forEach(function (a) {
      текущего админа, имя осталось от команды исторически, но подходит для
      любого action'а с той же серверной проверкой прав. */
 
+  /* Удалить может тот, кто вносил запись (по почте), или админ — сервер
+     проверяет то же самое, здесь только чтобы не показывать лишнюю кнопку. */
+  function canDeleteVac_(v) {
+    return ЭТО_АДМИН || (!!ТЕКУЩАЯ_ПОЧТА && String(v.author || "").trim().toLowerCase() === ТЕКУЩАЯ_ПОЧТА);
+  }
+
   function viewVacRowHtml_(v) {
     return '<tr data-id="' + эк(v.id) + '">' +
       "<td>" + эк(v.employee) + "</td>" +
       "<td>" + эк(fmtDate_(v.start)) + "</td>" +
       "<td>" + эк(fmtDate_(v.end)) + "</td>" +
       "<td>" + эк(v.comment) + "</td>" +
-      (ЭТО_АДМИН ? '<td class="rowactions"><button type="button" class="iconbtn danger" data-act="del" title="Удалить">×</button></td>' : "") +
+      (ТЕКУЩАЯ_ПОЧТА
+        ? '<td class="rowactions">' + (canDeleteVac_(v)
+            ? '<button type="button" class="iconbtn danger" data-act="del" title="Удалить">×</button>' : "") + "</td>"
+        : "") +
       "</tr>";
   }
 
@@ -457,9 +470,16 @@ document.getElementById("hubNav").querySelectorAll("a").forEach(function (a) {
     }).join("");
   }
 
+  /* Обычный сотрудник вносит отпуск только себе — поле "Сотрудник" не
+     выбор, а его собственное имя из "Команды" (сервер и так игнорирует
+     любое чужое имя от не-админа, см. vacationAdd_ в .gs). Выбор из
+     списка — только у админов. */
   function editVacRowHtml_() {
+    var employeeCell = ЭТО_АДМИН
+      ? '<select class="v-employee">' + employeeOptionsHtml_() + "</select>"
+      : эк(MY_NAME);
     return '<tr class="editrow">' +
-      '<td><select class="v-employee">' + employeeOptionsHtml_() + "</select></td>" +
+      "<td>" + employeeCell + "</td>" +
       '<td><input type="date" class="v-start"></td>' +
       '<td><input type="date" class="v-end"></td>' +
       '<td><input type="text" class="v-comment" placeholder="Необязательно"></td>' +
@@ -471,7 +491,7 @@ document.getElementById("hubNav").querySelectorAll("a").forEach(function (a) {
   function renderVacations_() {
     var head = document.getElementById("vacHeadRow");
     var extraTh = head.querySelector(".rowactions-h");
-    if (ЭТО_АДМИН && !extraTh) {
+    if (ТЕКУЩАЯ_ПОЧТА && !extraTh) {
       var th = document.createElement("th");
       th.className = "rowactions-h";
       head.appendChild(th);
@@ -479,14 +499,13 @@ document.getElementById("hubNav").querySelectorAll("a").forEach(function (a) {
     var sorted = VACATIONS.slice().sort(function (a, b) { return String(a.start || "").localeCompare(String(b.start || "")); });
     document.getElementById("vacBody").innerHTML = sorted.length
       ? sorted.map(viewVacRowHtml_).join("")
-      : '<tr><td colspan="' + (ЭТО_АДМИН ? 5 : 4) + '" class="empty-hint">Пока нет ни одного отпуска в графике.</td></tr>';
+      : '<tr><td colspan="' + (ТЕКУЩАЯ_ПОЧТА ? 5 : 4) + '" class="empty-hint">Пока нет ни одного отпуска в графике.</td></tr>';
     wireVacRows_();
     var addBtn = document.getElementById("vacAddBtn");
-    addBtn.hidden = !ЭТО_АДМИН;
+    addBtn.hidden = !ТЕКУЩАЯ_ПОЧТА;
   }
 
   function wireVacRows_() {
-    if (!ЭТО_АДМИН) return;
     document.getElementById("vacBody").querySelectorAll('[data-act="del"]').forEach(function (btn) {
       btn.addEventListener("click", function () {
         var tr = btn.closest("tr");
@@ -503,6 +522,10 @@ document.getElementById("hubNav").querySelectorAll("a").forEach(function (a) {
   }
 
   document.getElementById("vacAddBtn").addEventListener("click", function () {
+    if (!ЭТО_АДМИН && !MY_NAME) {
+      alert("Ваша почта не найдена в «Команде» — попросите админа сначала добавить вас туда, тогда сможете вносить свой отпуск.");
+      return;
+    }
     var body = document.getElementById("vacBody");
     if (!VACATIONS.length) body.innerHTML = "";
     var wrap = document.createElement("tbody");
@@ -514,7 +537,8 @@ document.getElementById("hubNav").querySelectorAll("a").forEach(function (a) {
       if (!VACATIONS.length) renderVacations_();
     });
     row.querySelector('[data-act="save"]').addEventListener("click", function () {
-      var employee = row.querySelector(".v-employee").value;
+      var employeeSel = row.querySelector(".v-employee");
+      var employee = ЭТО_АДМИН ? (employeeSel ? employeeSel.value : "") : MY_NAME;
       var start = row.querySelector(".v-start").value;
       var end = row.querySelector(".v-end").value;
       var comment = row.querySelector(".v-comment").value.trim();
@@ -525,11 +549,12 @@ document.getElementById("hubNav").querySelectorAll("a").forEach(function (a) {
       var id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
       teamAction("vacationAdd", { id: id, employee: employee, start: start, end: end, comment: comment }, function (ok, resOrWhy) {
         if (!ok) { alert("Не сохранилось: " + resOrWhy); btn.disabled = false; return; }
-        VACATIONS.push({ id: id, employee: employee, start: start, end: end, comment: comment });
+        VACATIONS.push({ id: id, employee: employee, start: start, end: end, comment: comment, author: ТЕКУЩАЯ_ПОЧТА });
         renderVacations_();
       });
     });
-    row.querySelector(".v-employee").focus();
+    var employeeSel = row.querySelector(".v-employee");
+    if (employeeSel) employeeSel.focus(); else row.querySelector(".v-start").focus();
   });
 })();
 </script>
