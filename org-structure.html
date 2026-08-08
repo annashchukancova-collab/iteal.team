@@ -464,52 +464,20 @@ ul.plain li::before{content:"— "}
     $("#panel").innerHTML = '<p class="ph">Выберите круг или роль на схеме.</p>';
   }
 
+  /* Роль (лист без детей) теперь редактируется на отдельной странице —
+     клик по ней сразу открывает role.html, минуя панель на карте. Панель
+     здесь остаётся только для кругов (у них своя миссия/домены/обязанности
+     прямо в этом виде). */
   function selectNode(id) {
     var n = NODES[id];
     if (!n) return;
+    if (id !== "root" && isLeaf(id)) {
+      location.href = "role.html?id=" + encodeURIComponent(id);
+      return;
+    }
     SELECTED = id;
     render();
-    if (id !== "root" && isLeaf(id)) renderRolePanel_(id, n);
-    else renderCirclePanel_(id, n);
-  }
-
-  /* Роль теперь редактируется на отдельной странице (role.html) — своя
-     миссия/домены/обязанности/исполнители/фото, оформленная как карточка
-     роли. Здесь, на карте, у роли остаётся только название и структурные
-     действия (переместить/удалить) — как у круга. */
-  function renderRolePanel_(id, n) {
-    var ro = ЭТО_АДМИН ? "" : " readonly";
-    var panel = $("#panel");
-    panel.innerHTML =
-      '<div class="kind">Роль</div>' +
-      '<div class="f"><label>Название</label><input id="fName" type="text" value="' + эк(n.name) + '"' + ro + '></div>' +
-      (n.updatedAt ? '<div class="meta">Обновлено ' + эк(n.updatedAt) + (n.updatedBy ? " · " + эк(n.updatedBy) : "") + '</div>' : "") +
-      '<div class="actions" id="panelActions"></div>';
-
-    var actions = $("#panelActions");
-    var openLink = document.createElement("a");
-    openLink.className = "btn"; openLink.href = "role.html?id=" + encodeURIComponent(id);
-    openLink.target = "_blank"; openLink.rel = "noopener";
-    openLink.textContent = "Открыть страницу роли →";
-    actions.appendChild(openLink);
-
-    if (!ЭТО_АДМИН) return;
-
-    $("#fName").addEventListener("change", function () {
-      var payload = {
-        id: id, name: $("#fName").value.trim(), changeLabel: "Название",
-        purpose: n.purpose, domains: n.domains, accountabilities: n.accountabilities,
-        notes: n.notes, assignees: n.assignees,
-        policies: n.policies, projects: n.projects, checklist: n.checklist,
-        goals: n.goals, metrics: n.metrics, attachments: n.attachments
-      };
-      orgAction("orgUpdateFields", payload, function (ok, resOrWhy) {
-        if (!ok) { alert("Не сохранилось: " + resOrWhy); return; }
-        n.name = payload.name; render();
-      });
-    });
-
-    appendMoveDeleteActions_(actions, id, n);
+    renderCirclePanel_(id, n);
   }
 
   function renderCirclePanel_(id, n) {

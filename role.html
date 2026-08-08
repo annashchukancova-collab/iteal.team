@@ -169,6 +169,15 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:40px;line-height:1.
   border-radius:8px;cursor:pointer;font-size:13px;color:var(--it-teal);display:inline-flex;
   align-items:center;justify-content:center;padding:0}
 .pencil-btn:hover{background:var(--it-paper);border-color:var(--it-teal)}
+.pencilwrap{position:relative}
+.pencilmenu{position:absolute;top:34px;left:0;background:var(--it-white);border:1px solid var(--it-line);
+  border-radius:10px;box-shadow:var(--shadow-md);padding:6px;display:flex;flex-direction:column;
+  min-width:150px;z-index:20}
+.pencilmenu button{font:500 14px var(--font-body);color:var(--it-ink-soft);background:none;border:none;
+  text-align:left;padding:8px 10px;border-radius:6px;cursor:pointer}
+.pencilmenu button:hover{background:var(--it-paper)}
+.pencilmenu button[data-action="delete"]{color:#93372C}
+.pencilmenu button[data-action="delete"]:hover{background:#FDF7F6}
 .btn{font:600 14px var(--font-body);border:1px solid var(--it-teal);background:var(--it-white);
   color:var(--it-teal);border-radius:var(--radius-sm);padding:10px 18px;cursor:pointer}
 .btn:hover{background:rgba(122,193,168,.1)}
@@ -468,7 +477,13 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     var editing = ЭТО_АДМИН && EDITING;
     var html =
       '<div class="titlebar"><p class="kicker">Роль в iTeal</p>' +
-      (ЭТО_АДМИН && !editing ? '<button type="button" class="pencil-btn" id="editToggle" title="Редактировать" aria-label="Редактировать">✎</button>' : "") +
+      (ЭТО_АДМИН && !editing
+        ? '<div class="pencilwrap"><button type="button" class="pencil-btn" id="editToggle" title="Действия" aria-label="Действия">✎</button>' +
+          '<div class="pencilmenu" id="pencilMenu" hidden>' +
+          '<button type="button" data-action="edit">Редактировать</button>' +
+          '<button type="button" data-action="delete">Удалить</button>' +
+          "</div></div>"
+        : "") +
       "</div>" +
       (editing ? '<input class="h1input" id="fName" type="text" value="' + эк(n.name) + '">' : "<h1>" + эк(n.name) + "</h1>") +
       '<div class="rule"></div>' +
@@ -498,8 +513,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       });
     });
 
-    var toggle = document.getElementById("editToggle");
-    if (toggle) toggle.addEventListener("click", function () { EDITING = true; buildCard_(CURRENT); });
+    wirePencilMenu_();
 
     if (!editing) return;
 
@@ -528,6 +542,36 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       buildCard_(CURRENT);
     });
   }
+
+  function wirePencilMenu_() {
+    var toggle = document.getElementById("editToggle");
+    var menu = document.getElementById("pencilMenu");
+    if (!toggle || !menu) return;
+
+    toggle.addEventListener("click", function (e) {
+      e.stopPropagation();
+      menu.hidden = !menu.hidden;
+    });
+    menu.querySelector('[data-action="edit"]').addEventListener("click", function () {
+      menu.hidden = true;
+      EDITING = true;
+      buildCard_(CURRENT);
+    });
+    menu.querySelector('[data-action="delete"]').addEventListener("click", function () {
+      menu.hidden = true;
+      if (!confirm('Удалить роль «' + CURRENT.name + '» насовсем? Это нельзя отменить.')) return;
+      orgAction("orgDelete", { id: ID }, function (ok, resOrWhy) {
+        if (!ok) { alert("Не получилось: " + resOrWhy); return; }
+        location.href = "org-structure.html";
+      });
+    });
+  }
+
+  document.addEventListener("click", function (e) {
+    var menu = document.getElementById("pencilMenu");
+    var toggle = document.getElementById("editToggle");
+    if (menu && !menu.hidden && e.target !== toggle && !menu.contains(e.target)) menu.hidden = true;
+  });
 
   function heroHtml_(n) {
     return n.photo ? '<div class="hero"><img src="' + n.photo + '" alt=""></div>' : "";
