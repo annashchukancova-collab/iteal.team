@@ -39,6 +39,10 @@ a{color:var(--it-teal)}
 .node-circle.leaf-filled{fill:var(--it-teal);stroke:var(--it-teal-deep);stroke-width:1.3}
 .node-circle.leaf-empty{fill:var(--it-white);stroke:var(--it-mint);stroke-width:1.3}
 .node-circle.current{stroke:var(--it-accent);stroke-width:3}
+.node-label{font-family:var(--font-heading);font-weight:700;fill:var(--it-ink-soft);
+  text-anchor:middle;pointer-events:none;user-select:none}
+.node-label.on-fill{fill:#fff}
+.node-label.container{fill:var(--it-teal-deep)}
 .siblings{margin-top:16px;background:var(--it-white);border:1px solid var(--it-line);border-radius:var(--radius-md);
   padding:14px;box-shadow:var(--shadow-sm)}
 .siblings h3{font:700 12px var(--font-heading);text-transform:uppercase;letter-spacing:.06em;color:var(--it-grey);margin:0 0 8px}
@@ -81,6 +85,9 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:40px;line-height:1.
 
 .assignees{margin:20px 0 0;font-size:14.5px;color:var(--it-ink-soft)}
 .assignees b{color:var(--it-ink)}
+.leadersel{display:block;margin-top:6px;max-width:280px;width:100%;font:400 14px/1.5 var(--font-body);
+  color:var(--it-ink);background:var(--it-white);border:1px solid var(--it-line);border-radius:var(--radius-sm);padding:8px 10px}
+.leadersel:focus{outline:none;border-color:var(--it-teal)}
 .taglist{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 .tag{display:inline-flex;align-items:center;gap:6px;background:var(--it-white);border:1px solid var(--it-line);
   border-radius:999px;padding:5px 8px 5px 14px;font-size:14px;box-shadow:var(--shadow-sm)}
@@ -380,7 +387,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       projects: gatherList_("projects"),
       goals: gatherList_("goals"),
       metrics: gatherList_("metrics"),
-      assignees: gatherTags_("assignees"),
+      assignees: isCircleId_(ID) ? gatherLeader_() : gatherTags_("assignees"),
       checklist: gatherChecklist_(),
       attachments: gatherAttachments_()
     };
@@ -422,6 +429,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       '<button type="button" data-cmd="justifyRight" title="По правому краю">⇥</button>' +
       '<button type="button" data-cmd="justifyFull" title="По ширине">☰</button>' +
       '<input type="color" data-cmd="foreColor" title="Цвет текста" value="#1C2622">' +
+      '<button type="button" data-cmd="createLink" title="Добавить ссылку к выделенному тексту">🔗</button>' +
       "</div>";
   }
 
@@ -449,6 +457,25 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
           ACTIVE_EDITABLE.focus();
           restoreRange_(SAVED_RANGE);
           document.execCommand(cmd, false, ctrl.value);
+        });
+      } else if (cmd === "createLink") {
+        // prompt() крадёт фокус (и выделение) у contenteditable сильнее, чем
+        // просто клик по кнопке — поэтому диапазон сохраняем на mousedown
+        // и восстанавливаем перед execCommand, как для цветового пикера.
+        ctrl.addEventListener("mousedown", function (e) { e.preventDefault(); SAVED_RANGE = getRange_(); });
+        ctrl.addEventListener("click", function () {
+          if (!ACTIVE_EDITABLE || !SAVED_RANGE || SAVED_RANGE.collapsed) {
+            alert("Сначала выделите текст, к которому нужно добавить ссылку.");
+            return;
+          }
+          var url = prompt("Ссылка (https://…):", "https://");
+          if (!url) return;
+          ACTIVE_EDITABLE.focus();
+          restoreRange_(SAVED_RANGE);
+          document.execCommand("createLink", false, url);
+          ACTIVE_EDITABLE.querySelectorAll("a:not([target])").forEach(function (a) {
+            a.target = "_blank"; a.rel = "noopener";
+          });
         });
       } else {
         ctrl.addEventListener("mousedown", function (e) { e.preventDefault(); });
@@ -506,11 +533,14 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     { key: "history", label: "История" }
   ];
 
+  function isCircleId_(id) { return id.indexOf("c-") === 0; }
+
   function buildCard_(n) {
-    document.title = n.name + " — роль в iTeal";
+    var isCircle = isCircleId_(ID);
+    document.title = n.name + (isCircle ? " — круг в iTeal" : " — роль в iTeal");
     var editing = ЭТО_АДМИН && EDITING;
     var html =
-      '<div class="titlebar"><p class="kicker">Роль в iTeal</p>' +
+      '<div class="titlebar"><p class="kicker">' + (isCircle ? "Круг в iTeal" : "Роль в iTeal") + "</p>" +
       (ЭТО_АДМИН && !editing
         ? '<div class="pencilwrap"><button type="button" class="pencil-btn" id="editToggle" title="Действия" aria-label="Действия">✎</button>' +
           '<div class="pencilmenu" id="pencilMenu">' +
@@ -523,7 +553,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       '<div class="rule"></div>' +
       (editing ? floatBarHtml_() : "") +
       heroHtml_(n) +
-      assigneesHtml_(n, editing) +
+      (isCircle ? leaderFieldHtml_(n, editing) : assigneesHtml_(n, editing)) +
       '<div class="tabs" id="tabs">' + TABS.map(function (t) {
         return '<button type="button" class="tab' + (t.key === ACTIVE_TAB ? " on" : "") + '" data-tab="' + t.key + '">' + t.label + "</button>";
       }).join("") + "</div>" +
@@ -552,7 +582,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     if (!editing) return;
 
     wireFloatBar_();
-    wireTagField_("assignees");
+    if (!isCircle) wireTagField_("assignees");
     wireListField_("domains");
     wireListField_("accountabilities");
     wireListField_("policies");
@@ -625,9 +655,48 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       '<button type="button" class="tagadd" data-field="assignees">+ добавить</button></div>';
   }
 
+  /* Лидер круга — не свободный текст, а выбор одного из тех, кто уже указан
+     исполнителем какой-либо роли внутри этого круга (в т.ч. вложенных
+     подкругов). Пока у круга нет ни одной роли, список пуст — это нормально,
+     он заполнится по мере добавления ролей. */
+  function leaderCandidates_(circleId) {
+    var set = {};
+    (function walk(cid) {
+      (ALL_CHILDREN[cid] || []).forEach(function (kid) {
+        if (isLeaf_(kid)) {
+          (ALL_NODES[kid].assignees || []).forEach(function (v) {
+            v = String(v || "").trim();
+            if (v) set[v] = true;
+          });
+        } else {
+          walk(kid);
+        }
+      });
+    })(circleId);
+    return Object.keys(set).sort(function (a, b) { return a.localeCompare(b, "ru"); });
+  }
+
+  function leaderFieldHtml_(n, editing) {
+    var current = String((n.assignees || [])[0] || "").trim();
+    if (!editing) {
+      return '<p class="assignees"><b>Лидер круга:</b> ' + (current ? эк(current) : "—") + "</p>";
+    }
+    var candidates = leaderCandidates_(ID);
+    if (current && candidates.indexOf(current) === -1) candidates.push(current);
+    var opts = '<option value="">— не выбран —</option>' + candidates.map(function (v) {
+      return '<option value="' + эк(v) + '"' + (v === current ? " selected" : "") + ">" + эк(v) + "</option>";
+    }).join("");
+    return '<div class="assignees"><b>Лидер круга</b><select id="fLeader" class="leadersel">' + opts + "</select></div>";
+  }
+
   function tagHtml_(value) {
     return '<span class="tag"><input type="text" class="chipinput" value="' + эк(value || "") +
       '"><button type="button" class="tagdel" aria-label="Удалить">×</button></span>';
+  }
+
+  function gatherLeader_() {
+    var el = document.getElementById("fLeader");
+    return el && el.value ? [el.value] : [];
   }
 
   function gatherTags_(fieldKey) {
@@ -972,7 +1041,30 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       title.textContent = d.data.name;
       c.appendChild(title);
       g.appendChild(c);
+
+      var showLabel = leaf ? d.r >= 16 : d.r >= 26;
+      if (showLabel) {
+        var t = document.createElementNS(ns, "text");
+        var fs = Math.max(8, Math.min(13, d.r / 3.2));
+        t.setAttribute("font-size", fs);
+        t.setAttribute("class", "node-label" + (filled ? " on-fill" : "") + (!leaf ? " container" : ""));
+        t.setAttribute("pointer-events", "none");
+        if (leaf) {
+          t.setAttribute("x", d.x); t.setAttribute("y", d.y);
+          t.setAttribute("dominant-baseline", "middle");
+        } else {
+          t.setAttribute("x", d.x); t.setAttribute("y", d.y - d.r + fs + 4);
+        }
+        t.textContent = обрезатьМини_(d.data.name, leaf ? Math.floor(d.r / (fs * 0.32)) : Math.floor((d.r * 1.6) / (fs * 0.55)));
+        g.appendChild(t);
+      }
     });
+  }
+
+  function обрезатьМини_(s, max) {
+    s = String(s || "");
+    if (!max || s.length <= max) return s;
+    return s.slice(0, Math.max(1, max - 1)) + "…";
   }
 
   function buildSiblings_() {

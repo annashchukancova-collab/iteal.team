@@ -69,10 +69,28 @@ var ЛИСТ_ОРГ = 'Оргструктура';
    у уже существующих строк ничего не съезжает при обновлении скрипта. */
 var ШАПКА_ОРГ = ['ID', 'Родитель', 'Название', 'Назначение', 'Домены',
   'Зоны ответственности', 'Заметки', 'Исполнители', 'Обновлено', 'Обновил', 'Фото',
-  'Политики', 'Проекты', 'Чеклисты', 'Цели', 'Метрики', 'Вложения'];
+  'Политики', 'Проекты', 'Чеклисты', 'Цели', 'Метрики', 'Вложения', 'История'];
 var О = { ID:1, РОДИТЕЛЬ:2, НАЗВАНИЕ:3, НАЗНАЧЕНИЕ:4, ДОМЕНЫ:5, ЗОНЫ:6,
   ЗАМЕТКИ:7, ИСПОЛНИТЕЛИ:8, ОБНОВЛЕНО:9, ОБНОВИЛ:10, ФОТО:11,
-  ПОЛИТИКИ:12, ПРОЕКТЫ:13, ЧЕКЛИСТЫ:14, ЦЕЛИ:15, МЕТРИКИ:16, ВЛОЖЕНИЯ:17 };
+  ПОЛИТИКИ:12, ПРОЕКТЫ:13, ЧЕКЛИСТЫ:14, ЦЕЛИ:15, МЕТРИКИ:16, ВЛОЖЕНИЯ:17, ИСТОРИЯ:18 };
+
+/* Журнал изменений узла — список строк "ISO-времяпочтачто изменили",
+   хранится в столбце "История" через \n, как остальные списки. Не безлимитный:
+   при каждой записи обрезаем до последних 50 — иначе ячейка листа рано или
+   поздно упрётся в предел длины, а вкладка "История" превратится в простыню. */
+var ИСТОРИЯ_МАКС = 50;
+/* Разделитель полей внутри одной строки лога — служебный символ (unit
+   separator), который никто не вводит с клавиатуры, поэтому не путается
+   с текстом самой правки. */
+var РАЗД_ИСТОРИИ = String.fromCharCode(31);
+function добавитьВИсторию_(sh, номер, метка, mail) {
+  if (!метка) return;
+  var текущая = String(sh.getRange(номер, О.ИСТОРИЯ).getValue() || '');
+  var строки = текущая ? текущая.split('\n') : [];
+  строки.push(new Date().toISOString() + РАЗД_ИСТОРИИ + (mail || '') + РАЗД_ИСТОРИИ + метка);
+  if (строки.length > ИСТОРИЯ_МАКС) строки = строки.slice(строки.length - ИСТОРИЯ_МАКС);
+  sh.getRange(номер, О.ИСТОРИЯ).setValue(строки.join('\n'));
+}
 
 /* Изменение структуры компании — риск выше, чем у своей маршрутной карты
    (можно испортить общий вид для всех), поэтому в отличие от карт здесь
@@ -86,6 +104,19 @@ var ОРГ_АДМИНЫ = [
 function этоАдминОрг_(mail) {
   return ОРГ_АДМИНЫ.indexOf(String(mail || '').trim().toLowerCase()) !== -1;
 }
+
+/* ---------------------------------------------------------------------
+   Итоги встреч — meeting-notes.html. Отдельный лист в той же таблице.
+   Одна строка = одна запись (итог одной встречи). Тип встречи — просто
+   код одной из трёх фиксированных вкладок, без отдельного листа на
+   каждую. Писать может любой прошедший гейт по почте @iteal.expert (это
+   рабочие заметки команды, а не структура компании), а удалять — только
+   сам автор записи или один из админов оргструктуры (тот же список). ---- */
+
+var ЛИСТ_ИТОГИ = 'Итоги встреч';
+var ШАПКА_ИТОГИ = ['ID', 'Тип', 'Дата', 'Текст', 'Вложения', 'Автор', 'Создано'];
+var И = { ID:1, ТИП:2, ДАТА:3, ТЕКСТ:4, ВЛОЖЕНИЯ:5, АВТОР:6, СОЗДАНО:7 };
+var ТИПЫ_ИТОГОВ = ['tactical', 'governance', 'retro'];
 
 /* ==============================  ТАБЛИЦА  ================================= */
 
@@ -110,6 +141,31 @@ function подготовка() {
   Logger.log('Лист "%s" готов, строк: %s', ЛИСТ_КАРТ, sh.getLastRow());
   var shОрг = листОрг_();
   Logger.log('Лист "%s" готов, строк: %s', ЛИСТ_ОРГ, shОрг.getLastRow());
+  var shИтоги = листИтоги_();
+  Logger.log('Лист "%s" готов, строк: %s', ЛИСТ_ИТОГИ, shИтоги.getLastRow());
+}
+
+/** Лист итогов встреч — создаёт лист с шапкой, если его ещё нет. */
+function листИтоги_() {
+  var ss = книга_();
+  var sh = ss.getSheetByName(ЛИСТ_ИТОГИ);
+  if (!sh) {
+    sh = ss.insertSheet(ЛИСТ_ИТОГИ);
+    sh.appendRow(ШАПКА_ИТОГИ);
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+
+/** Находит номер строки (1-based) по ID записи итогов, 0 если нет. */
+function найтиСтрокуИтоги_(sh, id) {
+  var last = sh.getLastRow();
+  if (last < 2) return 0;
+  var values = sh.getRange(2, И.ID, last - 1, 1).getValues();
+  for (var i = 0; i < values.length; i++) {
+    if (String(values[i][0]).trim() === String(id).trim()) return i + 2;
+  }
+  return 0;
 }
 
 /** Лист оргструктуры — создаёт лист с шапкой и сеет корень «iTeal», если пусто. */
@@ -122,7 +178,7 @@ function листОрг_() {
     sh.setFrozenRows(1);
   }
   if (sh.getLastRow() < 2) {
-    sh.appendRow(['root', '', 'iTeal', '', '', '', '', '', new Date(), '', '', '', '', '', '', '', '']);
+    sh.appendRow(['root', '', 'iTeal', '', '', '', '', '', new Date(), '', '', '', '', '', '', '', '', '']);
   }
   return sh;
 }
@@ -181,6 +237,12 @@ function doGet(e) {
     var orgData;
     try { orgData = JSON.parse(p.payload || '{}'); } catch (err) { orgData = {}; }
     результат = обработатьОрг_(action, orgData);
+  } else if (action === 'meetingList') {
+    результат = списокИтогов_();
+  } else if (action === 'meetingAdd' || action === 'meetingDelete') {
+    var meetingData;
+    try { meetingData = JSON.parse(p.payload || '{}'); } catch (err) { meetingData = {}; }
+    результат = обработатьИтоги_(action, meetingData);
   } else {
     результат = пинг_();
   }
@@ -385,7 +447,8 @@ function списокОрг_() {
         checklist: строкаВСписок_(r[О.ЧЕКЛИСТЫ - 1]),
         goals: строкаВСписок_(r[О.ЦЕЛИ - 1]),
         metrics: строкаВСписок_(r[О.МЕТРИКИ - 1]),
-        attachments: строкаВСписок_(r[О.ВЛОЖЕНИЯ - 1])
+        attachments: строкаВСписок_(r[О.ВЛОЖЕНИЯ - 1]),
+        history: строкаВСписок_(r[О.ИСТОРИЯ - 1])
       };
     });
     return { ok: true, nodes: nodes, stamp: версия_() };
@@ -409,7 +472,8 @@ function orgAddNode_(d) {
   var sh = листОрг_();
   if (найтиСтрокуОрг_(sh, id)) return { ok: false, error: 'узел с таким id уже есть' };
   if (!найтиСтрокуОрг_(sh, parent)) return { ok: false, error: 'родитель не найден' };
-  sh.appendRow([id, parent, name, '', '', '', '', '', new Date(), d.mail || '']);
+  sh.appendRow([id, parent, name, '', '', '', '', '', new Date(), d.mail || '', '', '', '', '', '', '', '', '']);
+  добавитьВИсторию_(sh, sh.getLastRow(), 'Создано', d.mail);
   return { ok: true, stamp: увеличитьВерсию_() };
 }
 
@@ -429,6 +493,7 @@ function orgUpdateFields_(d) {
     списокВСтроку_(d.policies), списокВСтроку_(d.projects), списокВСтроку_(d.checklist),
     списокВСтроку_(d.goals), списокВСтроку_(d.metrics), списокВСтроку_(d.attachments)
   ]]);
+  добавитьВИсторию_(sh, номер, d.changeLabel || 'Изменено', d.mail);
   return { ok: true, stamp: увеличитьВерсию_() };
 }
 
@@ -447,6 +512,7 @@ function orgReparent_(d) {
   }
   sh.getRange(номер, О.РОДИТЕЛЬ).setValue(newParent);
   sh.getRange(номер, О.ОБНОВЛЕНО, 1, 2).setValues([[new Date(), d.mail || '']]);
+  добавитьВИсторию_(sh, номер, 'Перемещено', d.mail);
   return { ok: true, stamp: увеличитьВерсию_() };
 }
 
@@ -500,4 +566,61 @@ function orgDelete_(d) {
   rowsToDelete.forEach(function (rowNum) { sh.deleteRow(rowNum); });
 
   return { ok: true, stamp: увеличитьВерсию_(), deleted: rowsToDelete.length };
+}
+
+/* =============================  ИТОГИ ВСТРЕЧ  ============================== */
+
+function обработатьИтоги_(action, d) {
+  switch (action) {
+    case 'meetingAdd': return meetingAdd_(d);
+    case 'meetingDelete': return meetingDelete_(d);
+  }
+  return { ok: false, error: 'неизвестное действие' };
+}
+
+function списокИтогов_() {
+  try {
+    var sh = листИтоги_();
+    var last = sh.getLastRow();
+    if (last < 2) return { ok: true, items: [], stamp: версия_() };
+    var rows = sh.getRange(2, 1, last - 1, ШАПКА_ИТОГИ.length).getValues();
+    var items = rows.filter(function (r) { return String(r[И.ID - 1]).trim(); }).map(function (r) {
+      return {
+        id: r[И.ID - 1], type: r[И.ТИП - 1], date: fmt_(r[И.ДАТА - 1]),
+        text: r[И.ТЕКСТ - 1] || '', attachments: строкаВСписок_(r[И.ВЛОЖЕНИЯ - 1]),
+        author: r[И.АВТОР - 1] || '', createdAt: fmt_(r[И.СОЗДАНО - 1])
+      };
+    });
+    return { ok: true, items: items, stamp: версия_() };
+  } catch (err) {
+    return { ok: false, error: String(err && err.message || err) };
+  }
+}
+
+function meetingAdd_(d) {
+  var mail = String(d.mail || '').trim();
+  if (!mail) return { ok: false, error: 'нет почты' };
+  var type = String(d.type || '').trim();
+  if (ТИПЫ_ИТОГОВ.indexOf(type) === -1) return { ok: false, error: 'неизвестный тип встречи' };
+  var text = String(d.text || '');
+  if (!text.replace(/<[^>]*>/g, '').trim()) return { ok: false, error: 'пустой текст итога' };
+  var id = String(d.id || '').trim();
+  if (!id) return { ok: false, error: 'id пустой' };
+  var sh = листИтоги_();
+  if (найтиСтрокуИтоги_(sh, id)) return { ok: false, error: 'запись с таким id уже есть' };
+  sh.appendRow([id, type, d.date || '', text, списокВСтроку_(d.attachments), mail, new Date()]);
+  return { ok: true, stamp: увеличитьВерсию_() };
+}
+
+function meetingDelete_(d) {
+  var id = String(d.id || '').trim();
+  var mail = String(d.mail || '').trim().toLowerCase();
+  if (!id) return { ok: false, error: 'id пустой' };
+  var sh = листИтоги_();
+  var номер = найтиСтрокуИтоги_(sh, id);
+  if (!номер) return { ok: false, error: 'запись не найдена' };
+  var автор = String(sh.getRange(номер, И.АВТОР).getValue() || '').trim().toLowerCase();
+  if (автор !== mail && !этоАдминОрг_(mail)) return { ok: false, error: 'удалить может только автор записи или админ' };
+  sh.deleteRow(номер);
+  return { ok: true, stamp: увеличитьВерсию_() };
 }
