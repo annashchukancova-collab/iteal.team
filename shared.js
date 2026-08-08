@@ -49,6 +49,19 @@ var WEBHOOK_URL = "";
     return '<div class="app-header"><a href="index.html" aria-label="На главную"><img class="logo" src="' + LOGO_SRC + '" alt="iTeal"></a>' + (navHtml || '') + '</div>';
   }
 
+  // Кнопка "наверх страницы" — добавляется сама на любую страницу,
+  // подключившую shared.js (включая будущие новые страницы сайта).
+  (function initTotop() {
+    document.body.insertAdjacentHTML(
+      "beforeend",
+      '<button type="button" class="it-totop" id="toTop" aria-label="Наверх" title="Наверх">↑</button>'
+    );
+    document.getElementById("toTop").addEventListener("click", function () {
+      var rm = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      window.scrollTo({ top: 0, behavior: rm ? "auto" : "smooth" });
+    });
+  })();
+
   function heroImageHtml() {
     return '<img class="hero-img" src="' + HERO_SRC + '" alt="" aria-hidden="true">';
   }
