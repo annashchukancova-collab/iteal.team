@@ -119,6 +119,11 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:40px;line-height:1.
   border-radius:var(--radius-md);padding:16px;box-shadow:var(--shadow-sm)}
 .item .n{flex:none;width:32px;height:32px;border-radius:var(--radius-sm);background:var(--it-paper);
   display:grid;place-items:center;font-family:var(--font-heading);font-weight:700;font-size:14px;color:var(--it-teal)}
+.metric-item .freqsel{flex:0 0 176px;font:400 13px var(--font-body);color:var(--it-ink);
+  background:var(--it-white);border:1px solid var(--it-line);border-radius:var(--radius-sm);padding:7px 8px}
+.metric-item .freqsel:focus{outline:none;border-color:var(--it-teal)}
+.freqtag{flex:0 0 auto;margin-top:2px;font:600 12px var(--font-body);color:var(--it-teal-deep);
+  background:var(--it-paper);border-radius:999px;padding:4px 10px;white-space:nowrap}
 .item .txt{flex:1;min-width:0;padding-top:4px}
 .item .txt p{margin:0;font-size:16px;color:var(--it-ink)}
 .item .txt.editable{font-size:16px;color:var(--it-ink)}
@@ -392,7 +397,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       policies: gatherList_("policies"),
       projects: gatherList_("projects"),
       goals: gatherList_("goals"),
-      metrics: gatherList_("metrics"),
+      metrics: gatherMetrics_(),
       assignees: isCircleId_(ID) ? gatherLeader_() : gatherTags_("assignees"),
       checklist: gatherChecklist_(),
       attachments: gatherAttachments_()
@@ -556,7 +561,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       projects: listSectionHtml_("projects", n.projects || [], editing),
       checklist: '<p class="kicker mb">Чеклисты</p>' + checklistHtml_(n, editing),
       goals: listSectionHtml_("goals", n.goals || [], editing),
-      metrics: listSectionHtml_("metrics", n.metrics || [], editing),
+      metrics: metricsHtml_(n, editing),
       history: '<p class="kicker mb">История</p>' + historyHtml_(n)
     };
     var html =
@@ -593,7 +598,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     wireListField_("policies");
     wireListField_("projects");
     wireListField_("goals");
-    wireListField_("metrics");
+    wireMetrics_();
     wireChecklist_();
     wireAttachments_();
 
@@ -773,7 +778,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
   /* Пункты — contenteditable, а не <input>, чтобы к ним тоже применялось
      форматирование (включая списки/уровни) через общий плавающий тулбар. */
 
-  var LIST_TITLES = { policies: "Политики", projects: "Проекты", goals: "Цели", metrics: "Метрики", domains: "Домены", accountabilities: "Обязанности" };
+  var LIST_TITLES = { policies: "Политики", projects: "Проекты", goals: "Цели", domains: "Домены", accountabilities: "Обязанности" };
 
   function listSectionHtml_(fieldKey, items, editing) {
     var title = LIST_TITLES[fieldKey] || fieldKey;
@@ -913,6 +918,73 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       wireRow(row);
       document.getElementById("attNewName").value = "";
       document.getElementById("attNewUrl").value = "";
+    });
+  }
+
+  /* ---- метрики: у каждой ещё выбор периодичности ---- */
+
+  var METRIC_FREQ_LABELS = { daily: "Ежедневная", monthly: "Ежемесячная", quarterly: "Ежеквартальная" };
+
+  function parseMetric_(line) {
+    var idx = line.indexOf(РАЗД);
+    return idx < 0 ? { freq: "", html: line } : { freq: line.slice(0, idx), html: line.slice(idx + 1) };
+  }
+
+  function metricsHtml_(n, editing) {
+    var items = (n.metrics || []).map(parseMetric_);
+    if (!editing) {
+      if (!items.length) return '<p class="kicker mb">Метрики</p><p class="empty-hint">Пока пусто</p>';
+      return '<p class="kicker mb">Метрики</p><div class="list">' + items.map(metricItemViewHtml_).join("") + "</div>";
+    }
+    var rows = items.map(metricItemHtml_).join("");
+    return '<p class="kicker mb">Метрики</p><div class="list" id="list-metrics">' +
+      (rows || '<p class="empty-hint">Пока пусто</p>') + "</div>" +
+      '<button type="button" class="listadd" id="metricsAddBtn">+ добавить</button>';
+  }
+
+  function metricItemViewHtml_(it) {
+    return '<div class="item metric-item"><span class="freqtag">' + эк(METRIC_FREQ_LABELS[it.freq] || "Без типа") + "</span>" +
+      '<div class="txt">' + (it.html || "") + "</div></div>";
+  }
+
+  function metricItemHtml_(it) {
+    var opts = '<option value="">Тип метрики…</option>' + Object.keys(METRIC_FREQ_LABELS).map(function (k) {
+      return '<option value="' + k + '"' + (k === it.freq ? " selected" : "") + ">" + METRIC_FREQ_LABELS[k] + "</option>";
+    }).join("");
+    return '<div class="item metric-item"><select class="freqsel">' + opts + "</select>" +
+      '<div class="txt editable" contenteditable="true" data-metric>' + (it.html || "") + "</div>" +
+      '<button type="button" class="itemdel" aria-label="Удалить">×</button></div>';
+  }
+
+  function gatherMetrics_() {
+    var list = document.getElementById("list-metrics");
+    if (!list) return [];
+    return Array.prototype.map.call(list.querySelectorAll(".metric-item"), function (row) {
+      var freq = row.querySelector(".freqsel").value;
+      var html = sanitizeHtml_(row.querySelector(".editable").innerHTML);
+      if (!plainText_(html)) return null;
+      return freq + РАЗД + html;
+    }).filter(Boolean);
+  }
+
+  function wireMetrics_() {
+    var list = document.getElementById("list-metrics");
+    if (!list) return;
+    function wireRow(row) {
+      row.querySelector(".itemdel").addEventListener("click", function () { row.remove(); });
+    }
+    Array.prototype.forEach.call(list.querySelectorAll(".metric-item"), wireRow);
+    var addBtn = document.getElementById("metricsAddBtn");
+    if (!addBtn) return;
+    addBtn.addEventListener("click", function () {
+      var hint = list.querySelector(".empty-hint");
+      if (hint) hint.remove();
+      var wrap = document.createElement("div");
+      wrap.innerHTML = metricItemHtml_({ freq: "", html: "" });
+      var row = wrap.firstChild;
+      list.appendChild(row);
+      wireRow(row);
+      row.querySelector(".editable").focus();
     });
   }
 
