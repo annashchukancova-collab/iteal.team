@@ -105,6 +105,9 @@ ul.plain li::before{content:"— "}
 .rte{width:100%;min-height:1.6em;font:400 14px/1.5 var(--font-body);color:var(--it-ink);
   background:var(--it-white);border:1px solid var(--it-line);border-radius:10px;padding:9px 11px}
 .rte:focus{border-color:var(--it-teal)}
+.editable ul,.editable ol,.panel .ph ul,.panel .ph ol{padding-left:22px;margin:6px 0}
+.editable ul ul,.editable ol ol,.editable ul ol,.editable ol ul{padding-left:18px;margin:2px 0}
+.editable li,.panel .ph li{margin:2px 0}
 .rtbar.floating{position:sticky;top:16px;z-index:9;background:var(--it-white);border:1px solid var(--it-line);
   border-radius:10px;box-shadow:var(--shadow-sm);padding:6px 8px;margin:0 0 14px;display:none;width:max-content}
 .rtbar.floating.show{display:flex}
@@ -493,7 +496,13 @@ ul.plain li::before{content:"— "}
     if (!ЭТО_АДМИН) return;
 
     $("#fName").addEventListener("change", function () {
-      var payload = Object.assign({}, n, { id: id, name: $("#fName").value.trim(), changeLabel: "Название" });
+      var payload = {
+        id: id, name: $("#fName").value.trim(), changeLabel: "Название",
+        purpose: n.purpose, domains: n.domains, accountabilities: n.accountabilities,
+        notes: n.notes, assignees: n.assignees,
+        policies: n.policies, projects: n.projects, checklist: n.checklist,
+        goals: n.goals, metrics: n.metrics, attachments: n.attachments
+      };
       orgAction("orgUpdateFields", payload, function (ok, resOrWhy) {
         if (!ok) { alert("Не сохранилось: " + resOrWhy); return; }
         n.name = payload.name; render();
@@ -650,11 +659,22 @@ ul.plain li::before{content:"— "}
     }).join("");
   }
 
+  /* В payload идут ТОЛЬКО поля, которые редактируются на карте — ни в коем
+     случае не весь узел n целиком (Object.assign({}, n, ...)): в n ещё
+     есть history (до 50 записей) и фото роли, если она уже когда-то стала
+     ролью с фото. Отправка всего этого на каждое сохранение раздувает
+     адрес /exec до длины, которую браузер отказывается открывать. */
   function saveCurrentNode(overrides, changeLabel) {
     if (!SELECTED || !ЭТО_АДМИН) return;
     var id = SELECTED;
     var n = NODES[id];
-    var payload = Object.assign({}, n, overrides, { id: id, changeLabel: changeLabel || "Изменено" });
+    var payload = Object.assign({
+      id: id,
+      name: n.name, purpose: n.purpose, domains: n.domains, accountabilities: n.accountabilities,
+      notes: n.notes, assignees: n.assignees,
+      policies: n.policies, projects: n.projects, checklist: n.checklist,
+      goals: n.goals, metrics: n.metrics, attachments: n.attachments
+    }, overrides, { changeLabel: changeLabel || "Изменено" });
     orgAction("orgUpdateFields", payload, function (ok, resOrWhy) {
       if (!ok) { alert("Не сохранилось: " + resOrWhy); return; }
       Object.assign(n, overrides);

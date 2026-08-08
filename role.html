@@ -109,6 +109,10 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:40px;line-height:1.
 .rte.on-teal{color:#fff;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.3);
   font-family:var(--font-heading);font-weight:500;font-size:20px;line-height:1.3}
 .rte-view{font-size:16px;color:var(--it-ink)}
+.editable ul,.editable ol,.rte-view ul,.rte-view ol{padding-left:24px;margin:6px 0}
+.editable ul ul,.editable ol ol,.editable ul ol,.editable ol ul,
+.rte-view ul ul,.rte-view ol ol,.rte-view ul ol,.rte-view ol ul{padding-left:20px;margin:2px 0}
+.editable li,.rte-view li{margin:2px 0}
 .mission{background:var(--it-teal);border-radius:var(--radius-md);padding:20px 24px}
 .mission .kicker{color:var(--it-white);opacity:.85}
 .mission .rte-view{font-family:var(--font-heading);font-weight:500;font-size:22px;line-height:1.25;
@@ -314,8 +318,16 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
      Собирает всё, что сейчас есть в DOM (режим редактирования держит все
      вкладки в DOM одновременно, просто скрытые — так что читать поля можно
      независимо от того, какая вкладка сейчас открыта). */
+  /* Важно: в payload идут ТОЛЬКО поля, которые реально редактируются на
+     этой странице — ни в коем случае не весь CURRENT целиком. CURRENT
+     содержит ещё и history (до 50 записей) и, в будущем, photo — если
+     механически заспредить их в каждый запрос на сохранение, адрес /exec
+     разрастается до такой длины, что браузер отказывается его открывать
+     ("нет доступа к адресу"), даже если на вид роль почти пустая. */
   function saveAll_(cb) {
     var payload = {
+      id: ID,
+      changeLabel: "Изменено",
       name: $("#fName").value.trim(),
       purpose: sanitizeHtml_(document.querySelector('[data-field="purpose"]').innerHTML),
       notes: sanitizeHtml_(document.querySelector('[data-field="notes"]').innerHTML),
@@ -329,8 +341,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       checklist: gatherChecklist_(),
       attachments: gatherAttachments_()
     };
-    var merged = Object.assign({}, CURRENT, payload, { id: ID, changeLabel: "Изменено" });
-    orgAction("orgUpdateFields", merged, function (ok, resOrWhy) {
+    orgAction("orgUpdateFields", payload, function (ok, resOrWhy) {
       if (ok) {
         CURRENT = Object.assign({}, CURRENT, payload);
         CURRENT.updatedAt = new Date().toLocaleString("ru-RU");
