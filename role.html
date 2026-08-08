@@ -83,6 +83,10 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:40px;line-height:1.
 .rule{height:4px;width:100%;background:var(--it-accent);border-radius:var(--radius-sm);margin:16px 0 0}
 .hero{margin:32px 0 0;border-radius:var(--radius-md);overflow:hidden;box-shadow:var(--shadow-sm)}
 .hero img{display:block;width:100%;height:auto}
+.photoinput{display:block;width:100%;max-width:420px;font:400 14px/1.5 var(--font-body);color:var(--it-ink);
+  background:var(--it-white);border:1px solid var(--it-line);border-radius:var(--radius-sm);padding:8px 10px}
+.photoinput:focus{outline:none;border-color:var(--it-teal)}
+.photo-hint{margin-top:6px;font-size:12px;color:var(--it-grey-light)}
 
 .assignees{margin:20px 0 0;font-size:14.5px;color:var(--it-ink-soft)}
 .assignees b{color:var(--it-ink)}
@@ -393,6 +397,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       id: ID,
       changeLabel: "Изменено",
       name: $("#fName").value.trim(),
+      photo: $("#fPhoto").value.trim(),
       purpose: sanitizeHtml_(document.querySelector('[data-field="purpose"]').innerHTML),
       notes: sanitizeHtml_(document.querySelector('[data-field="notes"]').innerHTML),
       domains: gatherList_("domains"),
@@ -580,7 +585,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       (editing ? '<input class="h1input" id="fName" type="text" value="' + эк(n.name) + '">' : "<h1>" + эк(n.name) + "</h1>") +
       '<div class="rule"></div>' +
       (editing ? floatBarHtml_() : "") +
-      heroHtml_(n) +
+      heroHtml_(n, editing) +
       (isCircle ? leaderFieldHtml_(n, editing) : assigneesHtml_(n, editing)) +
       '<div class="sections">' + SECTIONS.map(function (s) {
         return '<section class="sec-block' + (s.key === ACTIVE_SECTION ? " on" : "") + '" id="sec-' + s.key + '">' + sectionBodies[s.key] + "</section>";
@@ -671,8 +676,17 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     }
   });
 
-  function heroHtml_(n) {
-    return n.photo ? '<div class="hero"><img src="' + n.photo + '" alt=""></div>' : "";
+  /* Загрузки файла с браузера нет намеренно (убрали раньше по просьбе) —
+     фото размещается на уровне бэка: файл кладётся вместе с остальными
+     файлами сайта (например, в assets/), а сюда админ просто вписывает
+     ссылку на него. */
+  function heroHtml_(n, editing) {
+    var hero = n.photo ? '<div class="hero"><img src="' + эк(n.photo) + '" alt=""></div>' : "";
+    if (!editing) return hero;
+    return hero +
+      '<p class="kicker mb" style="margin-top:16px">Фото</p>' +
+      '<input type="text" id="fPhoto" class="photoinput" value="' + эк(n.photo || "") + '" placeholder="assets/photo.jpg или https://…">' +
+      '<p class="photo-hint">Ссылка на картинку, размещённую вместе с файлами сайта (assets/…), или прямая ссылка на изображение.</p>';
   }
 
   function assigneesHtml_(n, editing) {
