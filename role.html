@@ -93,6 +93,8 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:40px;line-height:1.
 .leadersel{display:block;margin-top:6px;max-width:280px;width:100%;font:400 14px/1.5 var(--font-body);
   color:var(--it-ink);background:var(--it-white);border:1px solid var(--it-line);border-radius:var(--radius-sm);padding:8px 10px}
 .leadersel:focus{outline:none;border-color:var(--it-teal)}
+.teampicker{display:flex;gap:8px;align-items:center;margin-top:8px}
+.teampicker select.leadersel{margin-top:0;max-width:240px}
 .taglist{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 .tag{display:inline-flex;align-items:center;gap:6px;background:var(--it-white);border:1px solid var(--it-line);
   border-radius:999px;padding:5px 8px 5px 14px;font-size:14px;box-shadow:var(--shadow-sm)}
@@ -351,7 +353,23 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     }, function (why) { onDone(false, why); }, 15000);
   }
 
+  /* Имена из таблицы "Команда" (talent-hub.html) — чтобы исполнителей роли
+     выбирали из реальных людей, а не вписывали текст руками. Грузим не
+     дожидаясь основной orgList: к моменту, когда админ реально откроет
+     редактирование, список почти наверняка уже придёт. Если нет — просто
+     покажется как временно пустой, ничего не ломается. */
+  var TEAM_NAMES = [];
+  function loadTeamNames_() {
+    jsonp({ action: "teamList" }, function (res) {
+      TEAM_NAMES = ((res && res.ok !== false && res.members) || [])
+        .map(function (m) { return String(m.name || "").trim(); })
+        .filter(Boolean)
+        .sort(function (a, b) { return a.localeCompare(b, "ru"); });
+    }, function () { /* тихо — это вспомогательные данные, не критично */ }, 12000);
+  }
+
   function load() {
+    loadTeamNames_();
     if (!ID) {
       $("#status").textContent = "Не указана роль (нет id в ссылке).";
       $("#status").className = "status err";
@@ -698,7 +716,23 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     var tags = items.map(function (v) { return tagHtml_(v); }).join("");
     return '<div class="assignees"><b>Исполнители</b>' +
       '<div class="taglist" id="list-assignees">' + tags + "</div>" +
-      '<button type="button" class="tagadd" data-field="assignees">+ добавить</button></div>';
+      '<div class="teampicker"><select id="teamPicker" class="leadersel">' + teamPickerOptionsHtml_(items) + "</select>" +
+      '<button type="button" class="tagadd" data-field="assignees">+ добавить</button></div></div>';
+  }
+
+  /* Выбор из таблицы "Команда" вместо свободного текста — так исполнитель
+     роли всегда реальный человек с почтой/телеграмом, а не опечатка. Уже
+     добавленные имена убираем из списка, чтобы не дублировать. */
+  function teamPickerOptionsHtml_(currentItems) {
+    var used = {};
+    (currentItems || []).forEach(function (v) { used[String(v).trim().toLowerCase()] = true; });
+    var available = TEAM_NAMES.filter(function (name) { return !used[name.toLowerCase()]; });
+    if (!available.length) {
+      return '<option value="">' + (TEAM_NAMES.length ? "Все уже добавлены" : "В «Команде» пока никого нет") + "</option>";
+    }
+    return '<option value="">Выберите имя…</option>' + available.map(function (name) {
+      return '<option value="' + эк(name) + '">' + эк(name) + "</option>";
+    }).join("");
   }
 
   /* Лидер круга — не свободный текст, а выбор одного из тех, кто уже указан
@@ -755,14 +789,21 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     var list = document.getElementById("list-" + fieldKey);
     if (!list) return;
     var addBtn = document.querySelector('.tagadd[data-field="' + fieldKey + '"]');
-    if (addBtn) addBtn.addEventListener("click", function () {
-      var wrap = document.createElement("span");
-      wrap.innerHTML = tagHtml_("");
-      var tag = wrap.firstChild;
-      list.appendChild(tag);
-      wireTagDelete_(tag);
-      tag.querySelector(".chipinput").focus();
-    });
+    var picker = document.getElementById("teamPicker");
+    if (addBtn && picker) {
+      addBtn.addEventListener("click", function () {
+        var name = picker.value;
+        if (!name) return;
+        var wrap = document.createElement("span");
+        wrap.innerHTML = tagHtml_(name);
+        var tag = wrap.firstChild;
+        list.appendChild(tag);
+        wireTagDelete_(tag);
+        var opt = picker.querySelector('option[value="' + name.replace(/"/g, '\\"') + '"]');
+        if (opt) opt.remove();
+        picker.value = "";
+      });
+    }
     Array.prototype.forEach.call(list.querySelectorAll(".tag"), wireTagDelete_);
   }
 

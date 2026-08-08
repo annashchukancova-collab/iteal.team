@@ -118,6 +118,16 @@ var ШАПКА_ИТОГИ = ['ID', 'Тип', 'Дата', 'Текст', 'Влож
 var И = { ID:1, ТИП:2, ДАТА:3, ТЕКСТ:4, ВЛОЖЕНИЯ:5, АВТОР:6, СОЗДАНО:7 };
 var ТИПЫ_ИТОГОВ = ['tactical', 'governance', 'retro'];
 
+/* ---------------------------------------------------------------------
+   Команда — talent-hub.html, вкладка "Команда". Отдельный лист, одна
+   строка = один человек. Личные данные (телефон, день рождения) —
+   добавлять/редактировать/удалять может только админ (тот же список
+   ОРГ_АДМИНЫ, что и у структуры); просмотр открыт всем, как и весь сайт. */
+
+var ЛИСТ_КОМАНДА = 'Команда';
+var ШАПКА_КОМАНДА = ['ID', 'Имя', 'Телеграм', 'Роль', 'Телефон', 'ДеньРождения', 'Город', 'Почта', 'Инстаграм', 'Обновлено', 'Обновил'];
+var КМ = { ID:1, ИМЯ:2, ТЕЛЕГРАМ:3, РОЛЬ:4, ТЕЛЕФОН:5, ДР:6, ГОРОД:7, ПОЧТА:8, ИНСТАГРАМ:9, ОБНОВЛЕНО:10, ОБНОВИЛ:11 };
+
 /* ==============================  ТАБЛИЦА  ================================= */
 
 function книга_() {
@@ -143,6 +153,31 @@ function подготовка() {
   Logger.log('Лист "%s" готов, строк: %s', ЛИСТ_ОРГ, shОрг.getLastRow());
   var shИтоги = листИтоги_();
   Logger.log('Лист "%s" готов, строк: %s', ЛИСТ_ИТОГИ, shИтоги.getLastRow());
+  var shКоманда = листКоманда_();
+  Logger.log('Лист "%s" готов, строк: %s', ЛИСТ_КОМАНДА, shКоманда.getLastRow());
+}
+
+/** Лист команды — создаёт лист с шапкой, если его ещё нет. */
+function листКоманда_() {
+  var ss = книга_();
+  var sh = ss.getSheetByName(ЛИСТ_КОМАНДА);
+  if (!sh) {
+    sh = ss.insertSheet(ЛИСТ_КОМАНДА);
+    sh.appendRow(ШАПКА_КОМАНДА);
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+
+/** Находит номер строки (1-based) по ID сотрудника, 0 если нет. */
+function найтиСтрокуКоманда_(sh, id) {
+  var last = sh.getLastRow();
+  if (last < 2) return 0;
+  var values = sh.getRange(2, КМ.ID, last - 1, 1).getValues();
+  for (var i = 0; i < values.length; i++) {
+    if (String(values[i][0]).trim() === String(id).trim()) return i + 2;
+  }
+  return 0;
 }
 
 /** Лист итогов встреч — создаёт лист с шапкой, если его ещё нет. */
@@ -243,6 +278,12 @@ function doGet(e) {
     var meetingData;
     try { meetingData = JSON.parse(p.payload || '{}'); } catch (err) { meetingData = {}; }
     результат = обработатьИтоги_(action, meetingData);
+  } else if (action === 'teamList') {
+    результат = списокКоманды_();
+  } else if (action === 'teamAdd' || action === 'teamUpdate' || action === 'teamDelete') {
+    var teamData;
+    try { teamData = JSON.parse(p.payload || '{}'); } catch (err) { teamData = {}; }
+    результат = обработатьКоманду_(action, teamData);
   } else {
     результат = пинг_();
   }
@@ -635,6 +676,73 @@ function meetingDelete_(d) {
   if (!номер) return { ok: false, error: 'запись не найдена' };
   var автор = String(sh.getRange(номер, И.АВТОР).getValue() || '').trim().toLowerCase();
   if (автор !== mail && !этоАдминОрг_(mail)) return { ok: false, error: 'удалить может только автор записи или админ' };
+  sh.deleteRow(номер);
+  return { ok: true, stamp: увеличитьВерсию_() };
+}
+
+/* ================================  КОМАНДА  ================================ */
+
+function обработатьКоманду_(action, d) {
+  if (!этоАдминОрг_(d.mail)) return { ok: false, error: 'только для админов' };
+  switch (action) {
+    case 'teamAdd': return teamAdd_(d);
+    case 'teamUpdate': return teamUpdate_(d);
+    case 'teamDelete': return teamDelete_(d);
+  }
+  return { ok: false, error: 'неизвестное действие' };
+}
+
+function списокКоманды_() {
+  try {
+    var sh = листКоманда_();
+    var last = sh.getLastRow();
+    if (last < 2) return { ok: true, members: [], stamp: версия_() };
+    var rows = sh.getRange(2, 1, last - 1, ШАПКА_КОМАНДА.length).getValues();
+    var members = rows.filter(function (r) { return String(r[КМ.ID - 1]).trim(); }).map(function (r) {
+      return {
+        id: r[КМ.ID - 1], name: r[КМ.ИМЯ - 1] || '', telegram: r[КМ.ТЕЛЕГРАМ - 1] || '',
+        role: r[КМ.РОЛЬ - 1] || '', phone: r[КМ.ТЕЛЕФОН - 1] || '', birthday: fmtДата_(r[КМ.ДР - 1]),
+        city: r[КМ.ГОРОД - 1] || '', mail: r[КМ.ПОЧТА - 1] || '', instagram: r[КМ.ИНСТАГРАМ - 1] || '',
+        updatedAt: fmt_(r[КМ.ОБНОВЛЕНО - 1]), updatedBy: r[КМ.ОБНОВИЛ - 1] || ''
+      };
+    });
+    return { ok: true, members: members, stamp: версия_() };
+  } catch (err) {
+    return { ok: false, error: String(err && err.message || err) };
+  }
+}
+
+function teamAdd_(d) {
+  var id = String(d.id || '').trim();
+  var name = String(d.name || '').trim();
+  if (!id || !name) return { ok: false, error: 'не хватает id/имени' };
+  var sh = листКоманда_();
+  if (найтиСтрокуКоманда_(sh, id)) return { ok: false, error: 'запись с таким id уже есть' };
+  sh.appendRow([id, name, d.telegram || '', d.role || '', d.phone || '', d.birthday || '',
+    d.city || '', d.mail || '', d.instagram || '', new Date(), d.mail || '']);
+  return { ok: true, stamp: увеличитьВерсию_() };
+}
+
+function teamUpdate_(d) {
+  var id = String(d.id || '').trim();
+  if (!id) return { ok: false, error: 'id пустой' };
+  var sh = листКоманда_();
+  var номер = найтиСтрокуКоманда_(sh, id);
+  if (!номер) return { ok: false, error: 'запись не найдена' };
+  sh.getRange(номер, КМ.ИМЯ, 1, 8).setValues([[
+    d.name || '', d.telegram || '', d.role || '', d.phone || '', d.birthday || '',
+    d.city || '', d.mail || '', d.instagram || ''
+  ]]);
+  sh.getRange(номер, КМ.ОБНОВЛЕНО, 1, 2).setValues([[new Date(), d.mail || '']]);
+  return { ok: true, stamp: увеличитьВерсию_() };
+}
+
+function teamDelete_(d) {
+  var id = String(d.id || '').trim();
+  if (!id) return { ok: false, error: 'id пустой' };
+  var sh = листКоманда_();
+  var номер = найтиСтрокуКоманда_(sh, id);
+  if (!номер) return { ok: false, error: 'запись не найдена' };
   sh.deleteRow(номер);
   return { ok: true, stamp: увеличитьВерсию_() };
 }
