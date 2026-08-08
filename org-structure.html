@@ -56,9 +56,10 @@ h1{font:700 32px/1.15 var(--font-heading);color:var(--it-teal-deep);margin:16px 
   border-radius:16px;box-shadow:var(--shadow-sm);padding:12px}
 .stage svg{display:block;width:100%;height:auto}
 .node-circle{cursor:pointer}
+.node-circle.root{fill:rgba(44,87,72,.03);stroke:var(--it-teal-deep);stroke-width:2.5}
+.node-circle.container{fill:rgba(67,131,109,.08);stroke:var(--it-teal);stroke-width:1.5}
 .node-circle.leaf-filled{fill:var(--it-teal);stroke:var(--it-teal-deep);stroke-width:1.5}
-.node-circle.leaf-empty{fill:var(--it-white);stroke:var(--it-grey-light);stroke-width:1.5}
-.node-circle.container{fill:var(--it-mint);stroke:var(--it-teal);stroke-width:1.5}
+.node-circle.leaf-empty{fill:var(--it-white);stroke:var(--it-mint);stroke-width:1.5}
 .node-circle.selected{stroke:var(--it-accent);stroke-width:3}
 .node-label{font-family:var(--font-heading);font-weight:700;fill:var(--it-ink-soft);
   text-anchor:middle;pointer-events:none;user-select:none}
@@ -83,6 +84,18 @@ ul.plain{list-style:none;margin-top:2px}
 ul.plain li{padding:3px 0;font-size:14px;color:var(--it-ink-soft)}
 ul.plain li::before{content:"— "}
 .meta{margin-top:14px;font-size:11.5px;color:var(--it-grey-light)}
+
+.chiplist{display:flex;flex-direction:column;gap:6px}
+.chiprow{display:flex;gap:6px;align-items:center}
+.chiprow .chipinput{flex:1;font:400 14px/1.4 var(--font-body);color:var(--it-ink);
+  background:var(--it-white);border:1px solid var(--it-line);border-radius:10px;padding:8px 10px}
+.chiprow .chipinput:focus{outline:none;border-color:var(--it-teal)}
+.chipdel{flex:0 0 auto;width:26px;height:26px;border:1px solid var(--it-line);background:var(--it-white);
+  border-radius:50%;color:var(--it-grey);cursor:pointer;font-size:15px;line-height:1;padding:0}
+.chipdel:hover{border-color:var(--status-alert);color:var(--status-alert-text)}
+.chipadd{margin-top:8px;font:600 13px var(--font-body);color:var(--it-teal);background:none;
+  border:1px dashed var(--it-mint);border-radius:10px;padding:7px 12px;cursor:pointer}
+.chipadd:hover{background:rgba(122,193,168,.1)}
 
 .actions{margin-top:20px;display:flex;flex-direction:column;gap:8px}
 .btn{font:600 14px var(--font-body);border:1px solid var(--it-teal);background:var(--it-white);
@@ -245,11 +258,24 @@ ul.plain li::before{content:"— "}
 
   var W = 640, H = 640;
 
+  // Насколько содержимое компании визуально меньше самого внешнего круга —
+  // без этого при малом числе кругов первого уровня они растягивались почти
+  // на всю площадь корня. Сжимаем всё дерево, кроме самого корня, к его же
+  // центру — это просто масштабирование, поэтому вложенность не ломается.
+  var СЖАТИЕ_ОТ_КОРНЯ = 0.78;
+
   function render() {
     if (!NODES.root) return;
     var root = d3.hierarchy(toHierarchy("root"), function (d) { return d.children; }).count();
     var pack = d3.pack().size([W - 8, H - 8]).padding(function (d) { return d.depth === 0 ? 4 : 10; });
     pack(root);
+
+    root.descendants().forEach(function (d) {
+      if (d.depth === 0) return;
+      d.r *= СЖАТИЕ_ОТ_КОРНЯ;
+      d.x = root.x + (d.x - root.x) * СЖАТИЕ_ОТ_КОРНЯ;
+      d.y = root.y + (d.y - root.y) * СЖАТИЕ_ОТ_КОРНЯ;
+    });
 
     var svg = $("#svg");
     svg.setAttribute("viewBox", "0 0 " + W + " " + H);
@@ -267,8 +293,8 @@ ul.plain li::before{content:"— "}
 
       var c = document.createElementNS(ns, "circle");
       c.setAttribute("cx", d.x); c.setAttribute("cy", d.y); c.setAttribute("r", d.r);
-      c.setAttribute("class", "node-circle " + (leaf ? (filled ? "leaf-filled" : "leaf-empty") : "container") +
-        (d.data.id === SELECTED ? " selected" : ""));
+      var circleKind = leaf ? (filled ? "leaf-filled" : "leaf-empty") : (d.depth === 0 ? "root" : "container");
+      c.setAttribute("class", "node-circle " + circleKind + (d.data.id === SELECTED ? " selected" : ""));
       wrap.appendChild(c);
 
       var showLabel = leaf ? d.r >= 16 : d.r >= 26;
@@ -320,23 +346,23 @@ ul.plain li::before{content:"— "}
     panel.innerHTML =
       '<div class="kind">' + (leaf ? "Роль" : "Круг") + (id === "root" ? " · корень" : "") + '</div>' +
       '<div class="f"><label>Название</label><input id="fName" type="text" value="' + эк(n.name) + '"' + ro + '></div>' +
-      '<div class="f"><label>Назначение</label><textarea id="fPurpose"' + ro + '>' + эк(n.purpose) + '</textarea></div>' +
-      '<div class="f"><label>Домены</label><textarea id="fDomains"' + ro + '>' + эк((n.domains || []).join("\n")) + '</textarea>' +
-        (ЭТО_АДМИН ? '<div class="hint">По одному пункту на строку</div>' : "") + '</div>' +
-      '<div class="f"><label>Зоны ответственности</label><textarea id="fAcc"' + ro + '>' + эк((n.accountabilities || []).join("\n")) + '</textarea>' +
-        (ЭТО_АДМИН ? '<div class="hint">По одному пункту на строку</div>' : "") + '</div>' +
-      (leaf ? '<div class="f"><label>Исполнители</label><textarea id="fAssignees"' + ro + '>' + эк((n.assignees || []).join("\n")) + '</textarea>' +
-        (ЭТО_АДМИН ? '<div class="hint">Имя или почта, по одному на строку</div>' : "") + '</div>' : "") +
+      '<div class="f"><label>Миссия</label><textarea id="fPurpose"' + ro + '>' + эк(n.purpose) + '</textarea></div>' +
+      '<div class="f"><label>Домены</label>' + listFieldHtml_("domains", n.domains || []) + '</div>' +
+      '<div class="f"><label>Зоны ответственности</label>' + listFieldHtml_("accountabilities", n.accountabilities || []) + '</div>' +
+      (leaf ? '<div class="f"><label>Исполнители</label>' + listFieldHtml_("assignees", n.assignees || [], "Имя или почта") + '</div>' : "") +
       '<div class="f"><label>Заметки</label><textarea id="fNotes"' + ro + '>' + эк(n.notes) + '</textarea></div>' +
       (n.updatedAt ? '<div class="meta">Обновлено ' + эк(n.updatedAt) + (n.updatedBy ? " · " + эк(n.updatedBy) : "") + '</div>' : "") +
       '<div class="actions" id="panelActions"></div>';
 
     if (!ЭТО_АДМИН) return;
 
-    ["fName", "fPurpose", "fDomains", "fAcc", "fAssignees", "fNotes"].forEach(function (fid) {
+    ["fName", "fPurpose", "fNotes"].forEach(function (fid) {
       var el = $("#" + fid);
       if (el) el.addEventListener("change", function () { saveCurrentNode(); });
     });
+    wireChipField_(panel, "domains");
+    wireChipField_(panel, "accountabilities");
+    if (leaf) wireChipField_(panel, "assignees");
 
     var actions = $("#panelActions");
     var addBtn = document.createElement("button");
@@ -379,6 +405,53 @@ ul.plain li::before{content:"— "}
     }
   }
 
+  /* Домены/зоны ответственности/исполнители — списки, редактируемые по
+     одному пункту через "+", а не одной многострочной textarea. */
+  function listFieldHtml_(fieldKey, items, hint) {
+    if (!ЭТО_АДМИН) {
+      if (!items.length) return '<p class="ph" style="font-size:13px">—</p>';
+      return '<ul class="plain">' + items.map(function (v) { return "<li>" + эк(v) + "</li>"; }).join("") + "</ul>";
+    }
+    var rows = items.map(function (v) { return chipRowHtml_(fieldKey, v); }).join("");
+    return '<div class="chiplist" id="list-' + fieldKey + '">' + rows + "</div>" +
+      '<button type="button" class="chipadd" data-field="' + fieldKey + '">+ добавить</button>' +
+      (hint ? '<div class="hint">' + hint + "</div>" : "");
+  }
+
+  function chipRowHtml_(fieldKey, value) {
+    return '<div class="chiprow"><input type="text" class="chipinput" data-field="' + fieldKey +
+      '" value="' + эк(value || "") + '"><button type="button" class="chipdel" aria-label="Удалить">×</button></div>';
+  }
+
+  function wireChip_(row) {
+    row.querySelector(".chipinput").addEventListener("change", function () { saveCurrentNode(); });
+    row.querySelector(".chipdel").addEventListener("click", function () { row.remove(); saveCurrentNode(); });
+  }
+
+  function wireChipField_(panel, fieldKey) {
+    var list = panel.querySelector("#list-" + fieldKey);
+    if (!list) return;
+    Array.prototype.forEach.call(list.querySelectorAll(".chiprow"), wireChip_);
+    var addBtn = panel.querySelector('.chipadd[data-field="' + fieldKey + '"]');
+    if (!addBtn) return;
+    addBtn.addEventListener("click", function () {
+      var row = document.createElement("div");
+      row.innerHTML = chipRowHtml_(fieldKey, "");
+      row = row.firstChild;
+      list.appendChild(row);
+      wireChip_(row);
+      row.querySelector(".chipinput").focus();
+    });
+  }
+
+  function gatherChips_(fieldKey) {
+    var list = document.getElementById("list-" + fieldKey);
+    if (!list) return [];
+    return Array.prototype.map.call(list.querySelectorAll(".chipinput"), function (el) {
+      return el.value.trim();
+    }).filter(Boolean);
+  }
+
   function moveOptionsHtml(excludeId) {
     var exclude = {}; exclude[excludeId] = true;
     descendantIds(excludeId).forEach(function (cid) { exclude[cid] = true; });
@@ -394,10 +467,10 @@ ul.plain li::before{content:"— "}
       id: id,
       name: $("#fName").value.trim(),
       purpose: $("#fPurpose").value,
-      domains: linesToArr_($("#fDomains").value),
-      accountabilities: linesToArr_($("#fAcc").value),
+      domains: gatherChips_("domains"),
+      accountabilities: gatherChips_("accountabilities"),
       notes: $("#fNotes").value,
-      assignees: $("#fAssignees") ? linesToArr_($("#fAssignees").value) : []
+      assignees: document.getElementById("list-assignees") ? gatherChips_("assignees") : []
     };
     orgAction("orgUpdateFields", payload, function (ok, resOrWhy) {
       if (!ok) { alert("Не сохранилось: " + resOrWhy); return; }
@@ -406,10 +479,6 @@ ul.plain li::before{content:"— "}
       n.accountabilities = payload.accountabilities; n.notes = payload.notes; n.assignees = payload.assignees;
       render();
     });
-  }
-
-  function linesToArr_(s) {
-    return String(s || "").split("\n").map(function (x) { return x.trim(); }).filter(Boolean);
   }
 
   function addChild(parentId) {
