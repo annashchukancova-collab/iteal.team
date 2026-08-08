@@ -57,6 +57,32 @@ var К = { ФИО:1, РОЛЬ:2, НАСТАВНИК:3, ПРИНЯТ:4, РОЖД�
   СОЗДАНА:9, ОБНОВЛЕНА:10, ПРОЦЕНТ:11, ШАГОВ_СДЕЛАНО:12, ШАГОВ_ВСЕГО:13,
   САМООБУЧ_СДЕЛАНО:14, САМООБУЧ_ВСЕГО:15, ТЕКУЩИЙ_ШАГ:16, БАЛЛ:17, АРХИВ:18 };
 
+/* ---------------------------------------------------------------------
+   Оргструктура (холакратия) — org-structure.html. Отдельный лист в той же
+   таблице. Одна строка = один узел (круг ИЛИ роль — деления на два типа
+   нет, узел с детьми рисуется как круг, без детей — как роль). Корень
+   всегда имеет ID='root'. Списки (Домены/Зоны ответственности/Исполнители)
+   хранятся как обычный текст с переносом строки на каждый пункт. ------- */
+
+var ЛИСТ_ОРГ = 'Оргструктура';
+var ШАПКА_ОРГ = ['ID', 'Родитель', 'Название', 'Назначение', 'Домены',
+  'Зоны ответственности', 'Заметки', 'Исполнители', 'Обновлено', 'Обновил'];
+var О = { ID:1, РОДИТЕЛЬ:2, НАЗВАНИЕ:3, НАЗНАЧЕНИЕ:4, ДОМЕНЫ:5, ЗОНЫ:6,
+  ЗАМЕТКИ:7, ИСПОЛНИТЕЛИ:8, ОБНОВЛЕНО:9, ОБНОВИЛ:10 };
+
+/* Изменение структуры компании — риск выше, чем у своей маршрутной карты
+   (можно испортить общий вид для всех), поэтому в отличие от карт здесь
+   есть ещё и серверная проверка почты, а не только клиентская. */
+var ОРГ_АДМИНЫ = [
+  'anna.shchukancova@iteal.expert',
+  'pavel.stupko@iteal.expert',
+  'galina.marushevskaia@iteal.expert',
+  'anastasiia.edakina@iteal.expert'
+];
+function этоАдминОрг_(mail) {
+  return ОРГ_АДМИНЫ.indexOf(String(mail || '').trim().toLowerCase()) !== -1;
+}
+
 /* ==============================  ТАБЛИЦА  ================================= */
 
 function книга_() {
@@ -78,6 +104,34 @@ function листКарт_() {
 function подготовка() {
   var sh = листКарт_();
   Logger.log('Лист "%s" готов, строк: %s', ЛИСТ_КАРТ, sh.getLastRow());
+  var shОрг = листОрг_();
+  Logger.log('Лист "%s" готов, строк: %s', ЛИСТ_ОРГ, shОрг.getLastRow());
+}
+
+/** Лист оргструктуры — создаёт лист с шапкой и сеет корень «iTeal», если пусто. */
+function листОрг_() {
+  var ss = книга_();
+  var sh = ss.getSheetByName(ЛИСТ_ОРГ);
+  if (!sh) {
+    sh = ss.insertSheet(ЛИСТ_ОРГ);
+    sh.appendRow(ШАПКА_ОРГ);
+    sh.setFrozenRows(1);
+  }
+  if (sh.getLastRow() < 2) {
+    sh.appendRow(['root', '', 'iTeal', '', '', '', '', '', new Date(), '']);
+  }
+  return sh;
+}
+
+/** Находит номер строки (1-based) по ID узла оргструктуры, 0 если нет. */
+function найтиСтрокуОрг_(sh, id) {
+  var last = sh.getLastRow();
+  if (last < 2) return 0;
+  var values = sh.getRange(2, О.ID, last - 1, 1).getValues();
+  for (var i = 0; i < values.length; i++) {
+    if (String(values[i][0]).trim() === String(id).trim()) return i + 2;
+  }
+  return 0;
 }
 
 /** Находит номер строки (1-based) по ФИО, 0 если нет. */
@@ -116,6 +170,13 @@ function doGet(e) {
     var data;
     try { data = JSON.parse(p.payload || '{}'); } catch (err) { data = {}; }
     результат = обработать_(action, data);
+  } else if (action === 'orgList') {
+    результат = списокОрг_();
+  } else if (action === 'orgAddNode' || action === 'orgUpdateFields' ||
+             action === 'orgReparent' || action === 'orgDelete') {
+    var orgData;
+    try { orgData = JSON.parse(p.payload || '{}'); } catch (err) { orgData = {}; }
+    результат = обработатьОрг_(action, orgData);
   } else {
     результат = пинг_();
   }
@@ -285,4 +346,142 @@ function новыйРяд_() {
   row[К.ПРОЦЕНТ - 1] = 0; row[К.ШАГОВ_СДЕЛАНО - 1] = 0; row[К.ШАГОВ_ВСЕГО - 1] = 0;
   row[К.САМООБУЧ_СДЕЛАНО - 1] = 0; row[К.САМООБУЧ_ВСЕГО - 1] = 0; row[К.АРХИВ - 1] = false;
   return row;
+}
+
+/* ============================  ОРГСТРУКТУРА  ============================== */
+
+function обработатьОрг_(action, d) {
+  if (!этоАдминОрг_(d.mail)) return { ok: false, error: 'только для админов' };
+  switch (action) {
+    case 'orgAddNode': return orgAddNode_(d);
+    case 'orgUpdateFields': return orgUpdateFields_(d);
+    case 'orgReparent': return orgReparent_(d);
+    case 'orgDelete': return orgDelete_(d);
+  }
+  return { ok: false, error: 'неизвестное действие' };
+}
+
+function списокОрг_() {
+  try {
+    var sh = листОрг_();
+    var last = sh.getLastRow();
+    var rows = sh.getRange(2, 1, last - 1, ШАПКА_ОРГ.length).getValues();
+    var nodes = rows.filter(function (r) { return String(r[О.ID - 1]).trim(); }).map(function (r) {
+      return {
+        id: r[О.ID - 1], parent: r[О.РОДИТЕЛЬ - 1], name: r[О.НАЗВАНИЕ - 1],
+        purpose: r[О.НАЗНАЧЕНИЕ - 1] || '',
+        domains: строкаВСписок_(r[О.ДОМЕНЫ - 1]),
+        accountabilities: строкаВСписок_(r[О.ЗОНЫ - 1]),
+        notes: r[О.ЗАМЕТКИ - 1] || '',
+        assignees: строкаВСписок_(r[О.ИСПОЛНИТЕЛИ - 1]),
+        updatedAt: fmt_(r[О.ОБНОВЛЕНО - 1]), updatedBy: r[О.ОБНОВИЛ - 1] || ''
+      };
+    });
+    return { ok: true, nodes: nodes, stamp: версия_() };
+  } catch (err) {
+    return { ok: false, error: String(err && err.message || err) };
+  }
+}
+
+function строкаВСписок_(v) {
+  return String(v || '').split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
+}
+function списокВСтроку_(v) {
+  return Array.isArray(v) ? v.join('\n') : String(v || '');
+}
+
+function orgAddNode_(d) {
+  var id = String(d.id || '').trim();
+  var parent = String(d.parent || '').trim();
+  var name = String(d.name || '').trim();
+  if (!id || !parent || !name) return { ok: false, error: 'не хватает id/parent/name' };
+  var sh = листОрг_();
+  if (найтиСтрокуОрг_(sh, id)) return { ok: false, error: 'узел с таким id уже есть' };
+  if (!найтиСтрокуОрг_(sh, parent)) return { ok: false, error: 'родитель не найден' };
+  sh.appendRow([id, parent, name, '', '', '', '', '', new Date(), d.mail || '']);
+  return { ok: true, stamp: увеличитьВерсию_() };
+}
+
+function orgUpdateFields_(d) {
+  var id = String(d.id || '').trim();
+  if (!id) return { ok: false, error: 'id пустой' };
+  var sh = листОрг_();
+  var номер = найтиСтрокуОрг_(sh, id);
+  if (!номер) return { ok: false, error: 'узел не найден' };
+  sh.getRange(номер, О.НАЗВАНИЕ, 1, 6).setValues([[
+    d.name || '', d.purpose || '', списокВСтроку_(d.domains), списокВСтроку_(d.accountabilities),
+    d.notes || '', списокВСтроку_(d.assignees)
+  ]]);
+  sh.getRange(номер, О.ОБНОВЛЕНО, 1, 2).setValues([[new Date(), d.mail || '']]);
+  return { ok: true, stamp: увеличитьВерсию_() };
+}
+
+function orgReparent_(d) {
+  var id = String(d.id || '').trim();
+  var newParent = String(d.parent || '').trim();
+  if (!id || !newParent) return { ok: false, error: 'не хватает id/parent' };
+  if (id === newParent) return { ok: false, error: 'нельзя переместить узел в самого себя' };
+  if (id === 'root') return { ok: false, error: 'у корня не может быть родителя' };
+  var sh = листОрг_();
+  var номер = найтиСтрокуОрг_(sh, id);
+  if (!номер) return { ok: false, error: 'узел не найден' };
+  if (!найтиСтрокуОрг_(sh, newParent)) return { ok: false, error: 'новый родитель не найден' };
+  if (орг_являетсяПотомком_(sh, newParent, id)) {
+    return { ok: false, error: 'нельзя переместить круг внутрь собственного потомка' };
+  }
+  sh.getRange(номер, О.РОДИТЕЛЬ).setValue(newParent);
+  sh.getRange(номер, О.ОБНОВЛЕНО, 1, 2).setValues([[new Date(), d.mail || '']]);
+  return { ok: true, stamp: увеличитьВерсию_() };
+}
+
+/** true, если candidateId — это сам ancestorId или лежит в его поддереве
+    (используется, чтобы нельзя было перенести круг сам в себя). */
+function орг_являетсяПотомком_(sh, candidateId, ancestorId) {
+  var last = sh.getLastRow();
+  if (last < 2) return false;
+  var rows = sh.getRange(2, 1, last - 1, ШАПКА_ОРГ.length).getValues();
+  var родительПо = {};
+  rows.forEach(function (r) { родительПо[String(r[О.ID - 1])] = String(r[О.РОДИТЕЛЬ - 1]); });
+  var cur = String(candidateId);
+  var guard = 0;
+  while (cur && guard++ < 1000) {
+    if (cur === String(ancestorId)) return true;
+    cur = родительПо[cur];
+  }
+  return false;
+}
+
+function orgDelete_(d) {
+  var id = String(d.id || '').trim();
+  if (!id) return { ok: false, error: 'id пустой' };
+  if (id === 'root') return { ok: false, error: 'нельзя удалить корень' };
+  var sh = листОрг_();
+  var last = sh.getLastRow();
+  if (last < 2) return { ok: false, error: 'узел не найден' };
+  var rows = sh.getRange(2, 1, last - 1, ШАПКА_ОРГ.length).getValues();
+
+  var byParent = {};
+  rows.forEach(function (r) {
+    var rparent = String(r[О.РОДИТЕЛЬ - 1]);
+    (byParent[rparent] = byParent[rparent] || []).push(String(r[О.ID - 1]));
+  });
+
+  var idsToDelete = {};
+  var stack = [id];
+  while (stack.length) {
+    var cur = stack.pop();
+    idsToDelete[cur] = true;
+    (byParent[cur] || []).forEach(function (childId) { stack.push(childId); });
+  }
+  if (!idsToDelete[id]) return { ok: false, error: 'узел не найден' };
+
+  var rowsToDelete = [];
+  rows.forEach(function (r, i) {
+    if (idsToDelete[String(r[О.ID - 1])]) rowsToDelete.push(i + 2);
+  });
+  // снизу вверх — иначе после первого deleteRow номера остальных строк съедут
+  rowsToDelete.sort(function (a, b) { return b - a; });
+  rowsToDelete.forEach(function (rowNum) { sh.deleteRow(rowNum); });
+
+  return { ok: true, stamp: увеличитьВерсию_(), deleted: rowsToDelete.length };
 }
