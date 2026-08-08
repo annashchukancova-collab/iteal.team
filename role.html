@@ -99,14 +99,17 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:40px;line-height:1.
   border-radius:999px;padding:6px 14px;cursor:pointer}
 .tagadd:hover{background:rgba(122,193,168,.1)}
 
-/* вкладки */
-.tabs{display:flex;gap:4px;border-bottom:1px solid var(--it-line);margin-top:32px;flex-wrap:wrap}
-.tab{font:600 14px var(--font-body);color:var(--it-grey);background:none;border:none;
-  padding:10px 14px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
-.tab:hover{color:var(--it-teal-deep)}
-.tab.on{color:var(--it-teal-deep);border-bottom-color:var(--it-teal)}
-.tabpanel{display:none;padding-top:28px}
-.tabpanel.on{display:block}
+/* разделы страницы — вместо вкладок единая прокручиваемая страница
+   (как остальные редакционные страницы сайта), с оглавлением сбоку вместо
+   горизонтальных вкладок в духе приложений */
+.sections{margin-top:8px}
+.sec-block{margin-top:40px;scroll-margin-top:112px}
+.toc{display:flex;flex-direction:column;gap:2px;margin-bottom:16px;background:var(--it-white);
+  border:1px solid var(--it-line);border-radius:var(--radius-md);padding:8px;box-shadow:var(--shadow-sm)}
+.toc a{display:block;padding:7px 10px;border-radius:6px;text-decoration:none;color:var(--it-grey);
+  font:600 13px var(--font-body);border-left:2px solid transparent}
+.toc a:hover{background:var(--it-paper);color:var(--it-ink-soft)}
+.toc a.active{color:var(--it-teal-deep);border-left-color:var(--it-teal);background:var(--it-paper)}
 
 .kicker.mb{margin-bottom:24px;display:block}
 .list{display:flex;flex-direction:column;gap:8px}
@@ -242,6 +245,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
   <div class="layout" id="layout" hidden>
     <div class="card" id="card"></div>
     <aside class="minimap-panel">
+      <nav class="toc" id="tocNav"></nav>
       <div class="stage"><svg id="miniSvg" viewBox="0 0 300 300"></svg></div>
       <div class="siblings" id="siblingsBox"></div>
     </aside>
@@ -268,7 +272,6 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
 
   var ID = new URLSearchParams(location.search).get("id") || "";
   var CURRENT = null;
-  var ACTIVE_TAB = "overview";
   var РАЗД = String.fromCharCode(31);
   /* Явный режим просмотр/редактирование — по умолчанию всегда чистый
      просмотр, даже для админа. Карандашик над названием включает
@@ -522,7 +525,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
 
   /* ------------------------------  карточка и вкладки  --------------------- */
 
-  var TABS = [
+  var SECTIONS = [
     { key: "overview", label: "Обзор" },
     { key: "policies", label: "Политики" },
     { key: "notes", label: "Примечания" },
@@ -535,10 +538,24 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
 
   function isCircleId_(id) { return id.indexOf("c-") === 0; }
 
+  /* Один документ, который прокручивается целиком, с оглавлением сбоку —
+     вместо вкладок в стиле приложения. Оглавление и якоря собираются из
+     того же списка SECTIONS, что и сами разделы, так что порядок и
+     заголовки задаются в одном месте. */
   function buildCard_(n) {
     var isCircle = isCircleId_(ID);
     document.title = n.name + (isCircle ? " — круг в iTeal" : " — роль в iTeal");
     var editing = ЭТО_АДМИН && EDITING;
+    var sectionBodies = {
+      overview: overviewHtml_(n, editing),
+      policies: listSectionHtml_("policies", n.policies || [], editing),
+      notes: notesTabHtml_(n, editing),
+      projects: listSectionHtml_("projects", n.projects || [], editing),
+      checklist: '<p class="kicker mb">Чеклисты</p>' + checklistHtml_(n, editing),
+      goals: listSectionHtml_("goals", n.goals || [], editing),
+      metrics: listSectionHtml_("metrics", n.metrics || [], editing),
+      history: '<p class="kicker mb">История</p>' + historyHtml_(n)
+    };
     var html =
       '<div class="titlebar"><p class="kicker">' + (isCircle ? "Круг в iTeal" : "Роль в iTeal") + "</p>" +
       (ЭТО_АДМИН && !editing
@@ -554,29 +571,14 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       (editing ? floatBarHtml_() : "") +
       heroHtml_(n) +
       (isCircle ? leaderFieldHtml_(n, editing) : assigneesHtml_(n, editing)) +
-      '<div class="tabs" id="tabs">' + TABS.map(function (t) {
-        return '<button type="button" class="tab' + (t.key === ACTIVE_TAB ? " on" : "") + '" data-tab="' + t.key + '">' + t.label + "</button>";
+      '<div class="sections">' + SECTIONS.map(function (s) {
+        return '<section class="sec-block" id="sec-' + s.key + '">' + sectionBodies[s.key] + "</section>";
       }).join("") + "</div>" +
-      '<div class="tabpanel' + (ACTIVE_TAB === "overview" ? " on" : "") + '" data-panel="overview">' + overviewHtml_(n, editing) + "</div>" +
-      '<div class="tabpanel' + (ACTIVE_TAB === "policies" ? " on" : "") + '" data-panel="policies">' + listSectionHtml_("policies", n.policies || [], editing) + "</div>" +
-      '<div class="tabpanel' + (ACTIVE_TAB === "notes" ? " on" : "") + '" data-panel="notes">' + notesTabHtml_(n, editing) + "</div>" +
-      '<div class="tabpanel' + (ACTIVE_TAB === "projects" ? " on" : "") + '" data-panel="projects">' + listSectionHtml_("projects", n.projects || [], editing) + "</div>" +
-      '<div class="tabpanel' + (ACTIVE_TAB === "checklist" ? " on" : "") + '" data-panel="checklist">' + checklistHtml_(n, editing) + "</div>" +
-      '<div class="tabpanel' + (ACTIVE_TAB === "goals" ? " on" : "") + '" data-panel="goals">' + listSectionHtml_("goals", n.goals || [], editing) + "</div>" +
-      '<div class="tabpanel' + (ACTIVE_TAB === "metrics" ? " on" : "") + '" data-panel="metrics">' + listSectionHtml_("metrics", n.metrics || [], editing) + "</div>" +
-      '<div class="tabpanel' + (ACTIVE_TAB === "history" ? " on" : "") + '" data-panel="history">' + historyHtml_(n) + "</div>" +
       (editing ? '<div class="savebar"><button type="button" class="btn pri" id="saveAllBtn">Сохранить</button><button type="button" class="btn" id="cancelEditBtn">Отмена</button></div>' : "") +
       "<footer>iTeal — Connect people &amp; computers</footer>";
     $("#card").innerHTML = html;
 
-    $("#tabs").querySelectorAll(".tab").forEach(function (btn) {
-      btn.addEventListener("click", function () {
-        ACTIVE_TAB = btn.dataset.tab;
-        $("#tabs").querySelectorAll(".tab").forEach(function (b) { b.classList.toggle("on", b === btn); });
-        document.querySelectorAll(".tabpanel").forEach(function (p) { p.classList.toggle("on", p.dataset.panel === ACTIVE_TAB); });
-      });
-    });
-
+    wireToc_();
     wirePencilMenu_();
 
     if (!editing) return;
@@ -605,6 +607,34 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       EDITING = false;
       buildCard_(CURRENT);
     });
+  }
+
+  var tocObserver_ = null;
+
+  function wireToc_() {
+    var nav = document.getElementById("tocNav");
+    if (!nav) return;
+    nav.innerHTML = SECTIONS.map(function (s) {
+      return '<a href="#sec-' + s.key + '" data-key="' + s.key + '">' + s.label + "</a>";
+    }).join("");
+    nav.querySelectorAll("a").forEach(function (a) {
+      a.addEventListener("click", function (e) {
+        e.preventDefault();
+        var target = document.getElementById("sec-" + a.dataset.key);
+        if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
+
+    if (tocObserver_) tocObserver_.disconnect();
+    if (!("IntersectionObserver" in window)) return;
+    tocObserver_ = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        var key = entry.target.id.replace("sec-", "");
+        nav.querySelectorAll("a").forEach(function (a) { a.classList.toggle("active", a.dataset.key === key); });
+      });
+    }, { rootMargin: "-112px 0px -70% 0px", threshold: 0 });
+    document.querySelectorAll(".sec-block").forEach(function (el) { tocObserver_.observe(el); });
   }
 
   function wirePencilMenu_() {
