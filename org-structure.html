@@ -383,6 +383,7 @@ ul.plain li::before{content:"— "}
     panel.innerHTML =
       '<div class="kind">Круг' + (id === "root" ? " · корень" : "") + '</div>' +
       '<div class="f"><label>Название</label><input id="fName" type="text" value="' + эк(n.name) + '"' + ro + '></div>' +
+      '<div class="f"><label>Лидер круга</label>' + listFieldHtml_("assignees", n.assignees || [], "Имя или почта") + '</div>' +
       '<div class="f"><label>Миссия</label><textarea id="fPurpose"' + ro + '>' + эк(n.purpose) + '</textarea></div>' +
       '<div class="f"><label>Домены</label>' + listFieldHtml_("domains", n.domains || []) + '</div>' +
       '<div class="f"><label>Зоны ответственности</label>' + listFieldHtml_("accountabilities", n.accountabilities || []) + '</div>' +
@@ -397,6 +398,7 @@ ul.plain li::before{content:"— "}
         var el = $("#" + fid);
         if (el) el.addEventListener("change", function () { saveCurrentNode(); });
       });
+      wireChipField_(panel, "assignees");
       wireChipField_(panel, "domains");
       wireChipField_(panel, "accountabilities");
       appendAddButtons_(actions, id);

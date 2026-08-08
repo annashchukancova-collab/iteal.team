@@ -44,7 +44,7 @@ a{color:var(--it-teal)}
 .status{color:var(--it-grey);font-size:14px}
 .status.err{color:#93372C}
 
-/* карточка роли — оформление по образцу */
+/* карточка роли */
 .card{margin-top:8px}
 .kicker{font-size:13px;text-transform:uppercase;letter-spacing:.2em;font-weight:700;color:var(--it-teal);margin:0}
 h1{font-family:var(--font-heading);font-weight:700;font-size:40px;line-height:1.15;color:var(--it-ink);margin:8px 0 0}
@@ -52,27 +52,8 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:40px;line-height:1.
   margin:8px 0 0;border:none;background:transparent;width:100%;padding:2px 0}
 .h1input:focus{outline:none;border-bottom:2px solid var(--it-mint)}
 .rule{height:4px;width:100%;background:var(--it-accent);border-radius:var(--radius-sm);margin:16px 0 0}
-.hero{margin:32px 0 0;border-radius:var(--radius-md);overflow:hidden;box-shadow:var(--shadow-sm);position:relative;
-  background:var(--it-white)}
+.hero{margin:32px 0 0;border-radius:var(--radius-md);overflow:hidden;box-shadow:var(--shadow-sm)}
 .hero img{display:block;width:100%;height:auto}
-.hero .placeholder{padding:56px 24px;text-align:center;color:var(--it-grey-light);
-  border:2px dashed var(--it-line);border-radius:var(--radius-md)}
-.hero .uploadbar{position:absolute;right:10px;bottom:10px}
-.hero.empty .uploadbar{position:static;margin-top:12px;text-align:center}
-.uploadbtn{font:600 13px var(--font-body);background:var(--it-white);color:var(--it-teal);
-  border:1px solid var(--it-teal);border-radius:999px;padding:8px 14px;cursor:pointer;box-shadow:var(--shadow-sm)}
-.uploadbtn:hover{background:rgba(122,193,168,.12)}
-.photostatus{margin-top:8px;font-size:12.5px;color:var(--it-grey)}
-
-.mission{margin:32px 0 0;background:var(--it-teal);border-radius:var(--radius-md);padding:20px 24px}
-.mission .kicker{color:var(--it-white);opacity:.85}
-.mission p{font-family:var(--font-heading);font-weight:500;font-size:22px;line-height:1.25;color:var(--it-white);
-  margin:12px 0 0}
-.mission textarea{width:100%;margin-top:12px;font-family:var(--font-heading);font-weight:500;font-size:20px;
-  line-height:1.3;color:var(--it-white);background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.3);
-  border-radius:var(--radius-sm);padding:8px 10px;resize:vertical;min-height:64px}
-.mission textarea:focus{outline:none;border-color:var(--it-white)}
-.mission textarea::placeholder{color:rgba(255,255,255,.6)}
 
 .assignees{margin:20px 0 0;font-size:14.5px;color:var(--it-ink-soft)}
 .assignees b{color:var(--it-ink)}
@@ -87,11 +68,19 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:40px;line-height:1.
   border-radius:999px;padding:6px 14px;cursor:pointer}
 .tagadd:hover{background:rgba(122,193,168,.1)}
 
-.sec{margin:48px 0 0}
+/* вкладки */
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--it-line);margin-top:32px;flex-wrap:wrap;overflow-x:auto}
+.tab{font:600 14px var(--font-body);color:var(--it-grey);background:none;border:none;
+  padding:10px 14px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
+.tab:hover{color:var(--it-teal-deep)}
+.tab.on{color:var(--it-teal-deep);border-bottom-color:var(--it-teal)}
+.tabpanel{display:none;padding-top:28px}
+.tabpanel.on{display:block}
+
 .kicker.mb{margin-bottom:24px;display:block}
 .list{display:flex;flex-direction:column;gap:8px}
 .item{display:flex;gap:16px;align-items:flex-start;background:var(--it-white);border:1px solid var(--it-line);
-  border-radius:var(--radius-md);padding:16px 16px 16px 16px;box-shadow:var(--shadow-sm)}
+  border-radius:var(--radius-md);padding:16px;box-shadow:var(--shadow-sm)}
 .item .n{flex:none;width:32px;height:32px;border-radius:var(--radius-sm);background:var(--it-paper);
   display:grid;place-items:center;font-family:var(--font-heading);font-weight:700;font-size:14px;color:var(--it-teal)}
 .item .txt{flex:1;min-width:0;padding-top:4px}
@@ -102,22 +91,65 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:40px;line-height:1.
 .item .itemdel{flex:none;width:26px;height:26px;border:1px solid var(--it-line);background:var(--it-white);
   border-radius:50%;color:var(--it-grey);cursor:pointer;font-size:15px;line-height:1;padding:0;margin-top:3px}
 .item .itemdel:hover{border-color:#B4483C;color:#93372C}
-.listadd{margin-top:4px;align-self:flex-start;font:600 13px var(--font-body);color:var(--it-teal);
+.listadd{margin-top:12px;align-self:flex-start;font:600 13px var(--font-body);color:var(--it-teal);
   background:none;border:1px dashed var(--it-mint);border-radius:var(--radius-md);padding:10px 16px;cursor:pointer}
 .listadd:hover{background:rgba(122,193,168,.1)}
 .empty-hint{font-size:14px;color:var(--it-grey-light)}
 
-.notes textarea{width:100%;min-height:72px;font:400 14px/1.5 var(--font-body);color:var(--it-ink-soft);
-  background:var(--it-white);border:1px solid var(--it-line);border-radius:var(--radius-md);padding:12px;resize:vertical}
-.notes textarea:focus{outline:none;border-color:var(--it-teal)}
-.notes p{color:var(--it-ink-soft);font-size:14.5px}
+/* rich text */
+.rtbar{display:flex;gap:4px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.rtbar button{width:30px;height:30px;border:1px solid var(--it-line);background:var(--it-white);
+  border-radius:6px;cursor:pointer;font:600 13px var(--font-body);color:var(--it-ink-soft)}
+.rtbar button:hover{background:var(--it-paper)}
+.rtbar input[type=color]{width:30px;height:30px;border:1px solid var(--it-line);border-radius:6px;
+  padding:2px;background:var(--it-white);cursor:pointer}
+.rtbar.on-teal button{background:rgba(255,255,255,.14);color:#fff;border-color:rgba(255,255,255,.4)}
+.rtbar.on-teal button:hover{background:rgba(255,255,255,.24)}
+.rte{min-height:90px;border:1px solid var(--it-line);border-radius:var(--radius-sm);padding:10px 12px;
+  font:400 15px/1.5 var(--font-body);color:var(--it-ink);background:var(--it-white)}
+.rte:focus{outline:none;border-color:var(--it-teal)}
+.rte.on-teal{color:#fff;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.3);
+  font-family:var(--font-heading);font-weight:500;font-size:20px;line-height:1.3}
+.rte-view{font-size:16px;color:var(--it-ink)}
+.mission{background:var(--it-teal);border-radius:var(--radius-md);padding:20px 24px}
+.mission .kicker{color:var(--it-white);opacity:.85}
+.mission .rte-view{font-family:var(--font-heading);font-weight:500;font-size:22px;line-height:1.25;
+  color:var(--it-white);margin-top:12px}
+.mission .rte-view a{color:#fff;text-decoration:underline}
+
+/* чек-лист */
+.citem{display:flex;align-items:center;gap:10px;background:var(--it-white);border:1px solid var(--it-line);
+  border-radius:var(--radius-md);padding:12px 14px;box-shadow:var(--shadow-sm)}
+.citem input[type=checkbox]{width:18px;height:18px;flex:none;accent-color:var(--it-teal)}
+.citem .ctext{flex:1;font-size:15px;color:var(--it-ink);border:none;background:transparent;font-family:inherit}
+.citem .ctext:focus{outline:none}
+.citem.done .ctext{text-decoration:line-through;color:var(--it-grey)}
+.citem.done p.ctext{text-decoration:line-through;color:var(--it-grey)}
+
+/* вложения */
+.attrow{display:flex;gap:8px;align-items:center;background:var(--it-white);border:1px solid var(--it-line);
+  border-radius:var(--radius-md);padding:10px 12px;box-shadow:var(--shadow-sm)}
+.attrow .attname{flex:0 0 40%;border:none;background:transparent;font:600 14px var(--font-body);color:var(--it-ink);min-width:0}
+.attrow .atturl{flex:1;border:none;background:transparent;font:14px var(--font-body);color:var(--it-ink-soft);min-width:0}
+.attrow input:focus{outline:none}
+.attaddrow{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.attaddrow input{flex:1;min-width:140px;font:400 14px var(--font-body);border:1px solid var(--it-line);
+  border-radius:8px;padding:8px 10px}
+.attview{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--it-line)}
+.attview:last-child{border-bottom:none}
+.attview img{max-width:96px;max-height:72px;border-radius:6px;object-fit:cover;flex:none}
+.attview a{font-weight:600}
+
+.hist{color:var(--it-grey);font-size:14.5px}
+.hist .note{margin-top:8px;font-size:12.5px;color:var(--it-grey-light)}
+
+.notes-wrap{display:flex;flex-direction:column;gap:28px}
 
 footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font-size:13px;color:var(--it-grey)}
 
 @media (max-width:640px){
   h1,.h1input{font-size:30px}
   .mission{padding:16px 20px}
-  .mission p{font-size:19px}
 }
 </style>
 </head>
@@ -153,12 +185,29 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
 
   var ID = new URLSearchParams(location.search).get("id") || "";
   var CURRENT = null;
+  var ACTIVE_TAB = "overview";
 
   var $ = function (s) { return document.querySelector(s); };
   function эк(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
+  }
+
+  /* Минимальная защита: то, что попадает в rich-text поля, идёт через
+     execCommand в contenteditable, но на всякий случай перед сохранением
+     вырезаем теги/атрибуты, которые не могли появиться сами — если кто-то
+     руками подсунет мусор через консоль браузера. */
+  function sanitizeHtml_(html) {
+    var el = document.createElement("div");
+    el.innerHTML = String(html || "");
+    el.querySelectorAll("script,iframe,object,embed,style,link").forEach(function (n) { n.remove(); });
+    el.querySelectorAll("*").forEach(function (n) {
+      Array.prototype.slice.call(n.attributes).forEach(function (a) {
+        if (/^on/i.test(a.name) || (a.name === "href" && /^\s*javascript:/i.test(a.value))) n.removeAttribute(a.name);
+      });
+    });
+    return el.innerHTML;
   }
 
   function jsonp(params, ok, err, ms) {
@@ -229,56 +278,66 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     });
   }
 
-  /* ------------------------------  рендер карточки  ----------------------- */
+  /* ------------------------------  карточка и вкладки  --------------------- */
+
+  var TABS = [
+    { key: "overview", label: "Обзор" },
+    { key: "policies", label: "Политики" },
+    { key: "notes", label: "Примечания" },
+    { key: "projects", label: "Проекты" },
+    { key: "checklist", label: "Чеклисты" },
+    { key: "goals", label: "Цели" },
+    { key: "metrics", label: "Метрики" },
+    { key: "history", label: "История" }
+  ];
 
   function renderPage(n) {
     document.title = n.name + " — роль в iTeal";
-    var ro = ЭТО_АДМИН;
+    var admin = ЭТО_АДМИН;
     var html =
       '<p class="kicker">Роль в iTeal</p>' +
-      (ro ? '<input class="h1input" id="fName" type="text" value="' + эк(n.name) + '">' : "<h1>" + эк(n.name) + "</h1>") +
+      (admin ? '<input class="h1input" id="fName" type="text" value="' + эк(n.name) + '">' : "<h1>" + эк(n.name) + "</h1>") +
       '<div class="rule"></div>' +
       heroHtml_(n) +
-      missionHtml_(n) +
       assigneesHtml_(n) +
-      listSectionHtml_("Домены", "domains", n.domains || []) +
-      listSectionHtml_("Обязанности", "accountabilities", n.accountabilities || []) +
-      notesHtml_(n) +
+      '<div class="tabs" id="tabs">' + TABS.map(function (t) {
+        return '<button type="button" class="tab' + (t.key === ACTIVE_TAB ? " on" : "") + '" data-tab="' + t.key + '">' + t.label + "</button>";
+      }).join("") + "</div>" +
+      '<div class="tabpanel' + (ACTIVE_TAB === "overview" ? " on" : "") + '" data-panel="overview">' + overviewHtml_(n) + "</div>" +
+      '<div class="tabpanel' + (ACTIVE_TAB === "policies" ? " on" : "") + '" data-panel="policies">' + listSectionHtml_("policies", n.policies || []) + "</div>" +
+      '<div class="tabpanel' + (ACTIVE_TAB === "notes" ? " on" : "") + '" data-panel="notes">' + notesTabHtml_(n) + "</div>" +
+      '<div class="tabpanel' + (ACTIVE_TAB === "projects" ? " on" : "") + '" data-panel="projects">' + listSectionHtml_("projects", n.projects || []) + "</div>" +
+      '<div class="tabpanel' + (ACTIVE_TAB === "checklist" ? " on" : "") + '" data-panel="checklist">' + checklistHtml_(n) + "</div>" +
+      '<div class="tabpanel' + (ACTIVE_TAB === "goals" ? " on" : "") + '" data-panel="goals">' + listSectionHtml_("goals", n.goals || []) + "</div>" +
+      '<div class="tabpanel' + (ACTIVE_TAB === "metrics" ? " on" : "") + '" data-panel="metrics">' + listSectionHtml_("metrics", n.metrics || []) + "</div>" +
+      '<div class="tabpanel' + (ACTIVE_TAB === "history" ? " on" : "") + '" data-panel="history">' + historyHtml_(n) + "</div>" +
       "<footer>iTeal — Connect people &amp; computers</footer>";
     $("#card").innerHTML = html;
 
-    if (ro) {
-      $("#fName").addEventListener("change", function () { saveNode_({ name: $("#fName").value.trim() }); });
-      wirePhotoUpload_();
-      $("#fMission").addEventListener("change", function () { saveNode_({ purpose: $("#fMission").value }); });
-      $("#fNotes").addEventListener("change", function () { saveNode_({ notes: $("#fNotes").value }); });
-      wireTagField_("assignees");
-      wireListField_("domains");
-      wireListField_("accountabilities");
-    }
+    $("#tabs").querySelectorAll(".tab").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        ACTIVE_TAB = btn.dataset.tab;
+        $("#tabs").querySelectorAll(".tab").forEach(function (b) { b.classList.toggle("on", b === btn); });
+        document.querySelectorAll(".tabpanel").forEach(function (p) { p.classList.toggle("on", p.dataset.panel === ACTIVE_TAB); });
+      });
+    });
+
+    if (!admin) return;
+
+    $("#fName").addEventListener("change", function () { saveNode_({ name: $("#fName").value.trim() }); });
+    wireTagField_("assignees");
+    wireRichText_("purpose", true);
+    wireRichText_("notes", false);
+    wireListField_("policies");
+    wireListField_("projects");
+    wireListField_("goals");
+    wireListField_("metrics");
+    wireChecklist_();
+    wireAttachments_();
   }
 
   function heroHtml_(n) {
-    if (n.photo) {
-      return '<div class="hero"><img src="' + n.photo + '" alt="">' +
-        (ЭТО_АДМИН ? '<div class="uploadbar"><button type="button" class="uploadbtn" id="photoBtn">Изменить фото</button>' +
-          '<input type="file" accept="image/*" id="photoInput" hidden></div>' : "") + "</div>" +
-        (ЭТО_АДМИН ? '<p class="photostatus" id="photoStatus"></p>' : "");
-    }
-    if (!ЭТО_АДМИН) return "";
-    return '<div class="hero empty"><div class="placeholder">Фото ещё не загружено</div>' +
-      '<div class="uploadbar"><button type="button" class="uploadbtn" id="photoBtn">Загрузить фото</button>' +
-      '<input type="file" accept="image/*" id="photoInput" hidden></div></div>' +
-      '<p class="photostatus" id="photoStatus"></p>';
-  }
-
-  function missionHtml_(n) {
-    if (!ЭТО_АДМИН) {
-      if (!n.purpose) return "";
-      return '<section class="mission"><p class="kicker">Миссия</p><p>' + эк(n.purpose) + "</p></section>";
-    }
-    return '<section class="mission"><p class="kicker">Миссия</p>' +
-      '<textarea id="fMission" placeholder="Зачем эта роль существует…">' + эк(n.purpose) + "</textarea></section>";
+    return n.photo ? '<div class="hero"><img src="' + n.photo + '" alt=""></div>' : "";
   }
 
   function assigneesHtml_(n) {
@@ -298,17 +357,83 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       '"><button type="button" class="tagdel" aria-label="Удалить">×</button></span>';
   }
 
-  function listSectionHtml_(title, fieldKey, items) {
+  /* ---- Обзор: миссия (rich text) + домены + обязанности ---- */
+
+  function overviewHtml_(n) {
+    return richFieldSectionHtml_("Миссия", "purpose", n.purpose, true) +
+      '<section class="sec" style="margin-top:32px"><p class="kicker mb">Домены</p>' + listBodyHtml_("domains", n.domains || []) + "</section>" +
+      '<section class="sec" style="margin-top:32px"><p class="kicker mb">Обязанности</p>' + listBodyHtml_("accountabilities", n.accountabilities || []) + "</section>";
+  }
+
+  function richFieldSectionHtml_(title, fieldKey, html, onTeal) {
+    var view = '<div class="rte-view">' + (html || '<span style="opacity:.7">—</span>') + "</div>";
     if (!ЭТО_АДМИН) {
-      if (!items.length) return "";
-      return '<section class="sec"><p class="kicker mb">' + title + '</p><div class="list">' +
-        items.map(function (v, i) { return itemHtml_(i, v, false); }).join("") + "</div></section>";
+      return onTeal
+        ? '<section class="mission"><p class="kicker">' + title + "</p>" + view + "</section>"
+        : '<section class="sec"><p class="kicker mb">' + title + "</p>" + view + "</section>";
     }
-    return '<section class="sec"><p class="kicker mb">' + title + '</p>' +
-      '<div class="list" id="list-' + fieldKey + '">' +
-      (items.length ? items.map(function (v, i) { return itemHtml_(i, v, true); }).join("")
-        : '<p class="empty-hint">Пока пусто</p>') +
-      '</div><button type="button" class="listadd" data-field="' + fieldKey + '" style="margin-top:12px">+ добавить</button></section>';
+    var bar =
+      '<div class="rtbar' + (onTeal ? " on-teal" : "") + '" data-target="rte-' + fieldKey + '">' +
+      '<button type="button" data-cmd="bold"><b>Ж</b></button>' +
+      '<button type="button" data-cmd="italic"><i>К</i></button>' +
+      '<button type="button" data-cmd="justifyLeft" title="По левому краю">⇤</button>' +
+      '<button type="button" data-cmd="justifyCenter" title="По центру">⇔</button>' +
+      '<button type="button" data-cmd="justifyRight" title="По правому краю">⇥</button>' +
+      '<button type="button" data-cmd="justifyFull" title="По ширине">☰</button>' +
+      '<input type="color" data-cmd="foreColor" title="Цвет текста" value="' + (onTeal ? "#ffffff" : "#1C2622") + '">' +
+      "</div>" +
+      '<div class="rte' + (onTeal ? " on-teal" : "") + '" id="rte-' + fieldKey + '" contenteditable="true">' + (html || "") + "</div>";
+    return onTeal
+      ? '<section class="mission"><p class="kicker">' + title + "</p>" + bar + "</section>"
+      : '<section class="sec"><p class="kicker mb">' + title + "</p>" + bar + "</section>";
+  }
+
+  function wireRichText_(fieldKey, onTeal) {
+    var bar = document.querySelector('.rtbar[data-target="rte-' + fieldKey + '"]');
+    var rte = document.getElementById("rte-" + fieldKey);
+    if (!bar || !rte) return;
+    bar.querySelectorAll("[data-cmd]").forEach(function (ctrl) {
+      var cmd = ctrl.dataset.cmd;
+      if (ctrl.tagName === "INPUT") {
+        ctrl.addEventListener("input", function () {
+          rte.focus();
+          document.execCommand(cmd, false, ctrl.value);
+        });
+        ctrl.addEventListener("change", function () { saveRte_(fieldKey, rte); });
+      } else {
+        ctrl.addEventListener("click", function () {
+          rte.focus();
+          document.execCommand(cmd, false, null);
+        });
+      }
+    });
+    rte.addEventListener("blur", function () { saveRte_(fieldKey, rte); });
+  }
+
+  function saveRte_(fieldKey, rte) {
+    var overrides = {};
+    var savedField = fieldKey === "purpose" ? "purpose" : "notes";
+    overrides[savedField] = sanitizeHtml_(rte.innerHTML);
+    saveNode_(overrides);
+  }
+
+  /* ---- списки через "+": домены/обязанности/политики/проекты/цели/метрики ---- */
+
+  var LIST_TITLES = { policies: "Политики", projects: "Проекты", goals: "Цели", metrics: "Метрики" };
+
+  function listSectionHtml_(fieldKey, items) {
+    var title = LIST_TITLES[fieldKey] || fieldKey;
+    return '<section class="sec"><p class="kicker mb">' + title + "</p>" + listBodyHtml_(fieldKey, items) + "</section>";
+  }
+
+  function listBodyHtml_(fieldKey, items) {
+    if (!ЭТО_АДМИН) {
+      if (!items.length) return '<p class="empty-hint">Пока пусто</p>';
+      return '<div class="list">' + items.map(function (v, i) { return itemHtml_(i, v, false); }).join("") + "</div>";
+    }
+    return '<div class="list" id="list-' + fieldKey + '">' +
+      (items.length ? items.map(function (v, i) { return itemHtml_(i, v, true); }).join("") : '<p class="empty-hint">Пока пусто</p>') +
+      '</div><button type="button" class="listadd" data-field="' + fieldKey + '">+ добавить</button>';
   }
 
   function itemHtml_(i, value, editable) {
@@ -317,17 +442,6 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       (editable ? '<input type="text" class="chipinput" value="' + эк(value || "") + '">' : "<p>" + эк(value) + "</p>") +
       "</div>" + (editable ? '<button type="button" class="itemdel" aria-label="Удалить">×</button>' : "") + "</div>";
   }
-
-  function notesHtml_(n) {
-    if (!ЭТО_АДМИН) {
-      if (!n.notes) return "";
-      return '<section class="sec notes"><p class="kicker mb">Заметки</p><p>' + эк(n.notes) + "</p></section>";
-    }
-    return '<section class="sec notes"><p class="kicker mb">Заметки</p>' +
-      '<textarea id="fNotes" placeholder="Необязательно">' + эк(n.notes) + "</textarea></section>";
-  }
-
-  /* ------------------------------  списки через "+"  ----------------------- */
 
   function renumber_(list) {
     Array.prototype.forEach.call(list.querySelectorAll(".item"), function (item, i) {
@@ -339,9 +453,13 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
   function gatherChips_(fieldKey) {
     var list = document.getElementById("list-" + fieldKey);
     if (!list) return [];
-    return Array.prototype.map.call(list.querySelectorAll(".chipinput"), function (el) {
-      return el.value.trim();
-    }).filter(Boolean);
+    return Array.prototype.map.call(list.querySelectorAll(".chipinput"), function (el) { return el.value.trim(); }).filter(Boolean);
+  }
+
+  function fieldPayload_(fieldKey) {
+    var o = {};
+    o[fieldKey] = gatherChips_(fieldKey);
+    return o;
   }
 
   function wireListField_(fieldKey) {
@@ -363,9 +481,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
   }
 
   function wireItem_(list, item, fieldKey) {
-    item.querySelector(".chipinput").addEventListener("change", function () {
-      saveNode_(fieldPayload_(fieldKey));
-    });
+    item.querySelector(".chipinput").addEventListener("change", function () { saveNode_(fieldPayload_(fieldKey)); });
     item.querySelector(".itemdel").addEventListener("click", function () {
       item.remove();
       renumber_(list);
@@ -390,68 +506,173 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
   }
 
   function wireTag_(tag, fieldKey) {
-    tag.querySelector(".chipinput").addEventListener("change", function () {
-      saveNode_(fieldPayload_(fieldKey));
-    });
+    tag.querySelector(".chipinput").addEventListener("change", function () { saveNode_(fieldPayload_(fieldKey)); });
     tag.querySelector(".tagdel").addEventListener("click", function () {
       tag.remove();
       saveNode_(fieldPayload_(fieldKey));
     });
   }
 
-  function fieldPayload_(fieldKey) {
-    var o = {};
-    o[fieldKey] = gatherChips_(fieldKey);
-    return o;
+  /* ---- примечания: rich text + вложения (ссылки на файлы/фото) ---- */
+
+  function notesTabHtml_(n) {
+    return '<div class="notes-wrap">' +
+      richFieldSectionHtml_("Примечания", "notes", n.notes, false) +
+      attachmentsHtml_(n) +
+      "</div>";
   }
 
-  /* ------------------------------  фото  ----------------------------------- */
+  function parseAttachment_(line) {
+    var idx = line.indexOf("|");
+    return idx < 0 ? { name: line, url: line } : { name: line.slice(0, idx), url: line.slice(idx + 1) };
+  }
+  function isImageUrl_(url) { return /\.(png|jpe?g|gif|webp)(\?.*)?$/i.test(url); }
 
-  function wirePhotoUpload_() {
-    var btn = document.getElementById("photoBtn");
-    var input = document.getElementById("photoInput");
-    if (!btn || !input) return;
-    btn.addEventListener("click", function () { input.click(); });
-    input.addEventListener("change", function () {
-      var file = input.files && input.files[0];
-      if (!file) return;
-      var reader = new FileReader();
-      reader.onload = function () {
-        var img = new Image();
-        img.onload = function () { compressAndSavePhoto_(img); };
-        img.src = reader.result;
-      };
-      reader.readAsDataURL(file);
+  function attachmentsHtml_(n) {
+    var items = (n.attachments || []).map(parseAttachment_);
+    if (!ЭТО_АДМИН) {
+      if (!items.length) return "";
+      return '<section class="sec"><p class="kicker mb">Вложения</p>' +
+        items.map(function (it) { return attachmentViewHtml_(it); }).join("") + "</section>";
+    }
+    var rows = items.map(function (it, i) { return attachmentRowHtml_(i, it); }).join("");
+    return '<section class="sec"><p class="kicker mb">Вложения</p>' +
+      '<div class="list" id="list-attachments">' + (rows || '<p class="empty-hint">Пока пусто</p>') + "</div>" +
+      '<div class="attaddrow"><input type="text" id="attNewName" placeholder="Название"><input type="text" id="attNewUrl" placeholder="Ссылка на файл/фото (Google Drive, Диск и т.д.)">' +
+      '<button type="button" class="listadd" id="attAddBtn">+ добавить</button></div>' +
+      '<p class="empty-hint" style="margin-top:8px">Файл сначала загрузите в Google Drive (или другое хранилище), затем вставьте сюда ссылку с доступом «по ссылке».</p></section>';
+  }
+
+  function attachmentViewHtml_(it) {
+    return '<div class="attview">' +
+      (isImageUrl_(it.url) ? '<img src="' + эк(it.url) + '" alt="">' : "") +
+      '<a href="' + эк(it.url) + '" target="_blank" rel="noopener">' + эк(it.name || it.url) + "</a></div>";
+  }
+
+  function attachmentRowHtml_(i, it) {
+    return '<div class="attrow" data-i="' + i + '">' +
+      '<input type="text" class="attname" value="' + эк(it.name) + '" placeholder="Название">' +
+      '<input type="text" class="atturl" value="' + эк(it.url) + '" placeholder="Ссылка">' +
+      '<button type="button" class="itemdel" aria-label="Удалить">×</button></div>';
+  }
+
+  function gatherAttachments_() {
+    var list = document.getElementById("list-attachments");
+    if (!list) return [];
+    return Array.prototype.map.call(list.querySelectorAll(".attrow"), function (row) {
+      var name = row.querySelector(".attname").value.trim();
+      var url = row.querySelector(".atturl").value.trim();
+      return url ? (name ? name + "|" + url : url) : null;
+    }).filter(Boolean);
+  }
+
+  function wireAttachments_() {
+    var list = document.getElementById("list-attachments");
+    if (!list) return;
+    function wireRow(row) {
+      row.querySelectorAll("input").forEach(function (inp) {
+        inp.addEventListener("change", function () { saveNode_({ attachments: gatherAttachments_() }); });
+      });
+      row.querySelector(".itemdel").addEventListener("click", function () {
+        row.remove();
+        saveNode_({ attachments: gatherAttachments_() });
+      });
+    }
+    Array.prototype.forEach.call(list.querySelectorAll(".attrow"), wireRow);
+    var addBtn = document.getElementById("attAddBtn");
+    if (!addBtn) return;
+    addBtn.addEventListener("click", function () {
+      var name = document.getElementById("attNewName").value.trim();
+      var url = document.getElementById("attNewUrl").value.trim();
+      if (!url) return;
+      var hint = list.querySelector(".empty-hint");
+      if (hint) hint.remove();
+      var wrap = document.createElement("div");
+      wrap.innerHTML = attachmentRowHtml_(list.querySelectorAll(".attrow").length, { name: name, url: url });
+      var row = wrap.firstChild;
+      list.appendChild(row);
+      wireRow(row);
+      document.getElementById("attNewName").value = "";
+      document.getElementById("attNewUrl").value = "";
+      saveNode_({ attachments: gatherAttachments_() });
     });
   }
 
-  function setPhotoStatus_(text) {
-    var el = document.getElementById("photoStatus");
-    if (el) el.textContent = text;
+  /* ---- чек-лист: "1|текст" / "0|текст" ---- */
+
+  function parseChecklistItem_(line) {
+    var idx = line.indexOf("|");
+    return idx < 0 ? { done: false, text: line } : { done: line.slice(0, idx) === "1", text: line.slice(idx + 1) };
   }
 
-  function compressAndSavePhoto_(img) {
-    var maxSide = 480;
-    var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
-    var scale = Math.min(1, maxSide / Math.max(w, h));
-    var cw = Math.max(1, Math.round(w * scale)), ch = Math.max(1, Math.round(h * scale));
-    var canvas = document.createElement("canvas");
-    canvas.width = cw; canvas.height = ch;
-    canvas.getContext("2d").drawImage(img, 0, 0, cw, ch);
+  function checklistHtml_(n) {
+    var items = (n.checklist || []).map(parseChecklistItem_);
+    if (!ЭТО_АДМИН) {
+      if (!items.length) return '<p class="empty-hint">Пока пусто</p>';
+      return '<div class="list">' + items.map(checklistItemViewHtml_).join("") + "</div>";
+    }
+    var rows = items.map(checklistItemHtml_).join("");
+    return '<div class="list" id="list-checklist">' + (rows || '<p class="empty-hint">Пока пусто</p>') + "</div>" +
+      '<button type="button" class="listadd" id="checklistAddBtn">+ добавить</button>';
+  }
 
-    var qualities = [0.7, 0.5, 0.35];
-    var dataUrl = canvas.toDataURL("image/jpeg", qualities[0]);
-    for (var i = 1; i < qualities.length && dataUrl.length > 7000; i++) {
-      dataUrl = canvas.toDataURL("image/jpeg", qualities[i]);
+  function checklistItemViewHtml_(it) {
+    return '<div class="citem' + (it.done ? " done" : "") + '"><input type="checkbox" disabled' + (it.done ? " checked" : "") + '><p class="ctext">' + эк(it.text) + "</p></div>";
+  }
+
+  function checklistItemHtml_(it) {
+    return '<div class="citem' + (it.done ? " done" : "") + '"><input type="checkbox" class="cbox"' + (it.done ? " checked" : "") + '>' +
+      '<input type="text" class="ctext chipinput" value="' + эк(it.text) + '">' +
+      '<button type="button" class="itemdel" aria-label="Удалить">×</button></div>';
+  }
+
+  function gatherChecklist_() {
+    var list = document.getElementById("list-checklist");
+    if (!list) return [];
+    return Array.prototype.map.call(list.querySelectorAll(".citem"), function (row) {
+      var text = row.querySelector(".ctext").value.trim();
+      var done = row.querySelector(".cbox").checked;
+      return text ? (done ? "1|" : "0|") + text : null;
+    }).filter(Boolean);
+  }
+
+  function wireChecklist_() {
+    var list = document.getElementById("list-checklist");
+    if (!list) return;
+    function wireRow(row) {
+      row.querySelector(".ctext").addEventListener("change", function () { saveNode_({ checklist: gatherChecklist_() }); });
+      row.querySelector(".cbox").addEventListener("change", function () {
+        row.classList.toggle("done", row.querySelector(".cbox").checked);
+        saveNode_({ checklist: gatherChecklist_() });
+      });
+      row.querySelector(".itemdel").addEventListener("click", function () {
+        row.remove();
+        saveNode_({ checklist: gatherChecklist_() });
+      });
     }
-    if (dataUrl.length > 9000) {
-      alert("Фото получилось слишком большим даже после сжатия — выберите файл попроще (например, портрет крупным планом) или меньшего размера.");
-      return;
-    }
-    setPhotoStatus_("Сохраняю фото…");
-    saveNode_({ photo: dataUrl }, function (ok, why) {
-      setPhotoStatus_(ok ? "" : "Не сохранилось: " + why);
+    Array.prototype.forEach.call(list.querySelectorAll(".citem"), wireRow);
+    var addBtn = document.getElementById("checklistAddBtn");
+    if (!addBtn) return;
+    addBtn.addEventListener("click", function () {
+      var hint = list.querySelector(".empty-hint");
+      if (hint) hint.remove();
+      var wrap = document.createElement("div");
+      wrap.innerHTML = checklistItemHtml_({ done: false, text: "" });
+      var row = wrap.firstChild;
+      list.appendChild(row);
+      wireRow(row);
+      row.querySelector(".ctext").focus();
     });
+  }
+
+  /* ---- история: только то, что реально фиксируется (без полного лога) ---- */
+
+  function historyHtml_(n) {
+    return '<div class="hist">' +
+      (n.updatedAt
+        ? "<p>Последнее изменение: <b>" + эк(n.updatedAt) + "</b>" + (n.updatedBy ? " · " + эк(n.updatedBy) : "") + "</p>"
+        : '<p class="empty-hint">Изменений ещё не было</p>') +
+      '<p class="note">Полной истории версий страница не ведёт — только дату и автора последней правки.</p></div>';
   }
 
   document.getElementById("toTop").addEventListener("click", function () {
