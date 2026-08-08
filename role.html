@@ -124,6 +124,9 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:40px;line-height:1.
 .metric-item .freqsel:focus{outline:none;border-color:var(--it-teal)}
 .freqtag{flex:0 0 auto;margin-top:2px;font:600 12px var(--font-body);color:var(--it-teal-deep);
   background:var(--it-paper);border-radius:999px;padding:4px 10px;white-space:nowrap}
+.metric-group-h{font:700 12px var(--font-heading);text-transform:uppercase;letter-spacing:.06em;
+  color:var(--it-grey);margin:18px 0 8px}
+.metric-group-h:first-child{margin-top:0}
 .item .txt{flex:1;min-width:0;padding-top:4px}
 .item .txt p{margin:0;font-size:16px;color:var(--it-ink)}
 .item .txt.editable{font-size:16px;color:var(--it-ink)}
@@ -924,29 +927,42 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
   /* ---- метрики: у каждой ещё выбор периодичности ---- */
 
   var METRIC_FREQ_LABELS = { daily: "Ежедневная", monthly: "Ежемесячная", quarterly: "Ежеквартальная" };
-  var METRIC_FREQ_ORDER = { daily: 0, monthly: 1, quarterly: 2 };
+  var METRIC_GROUP_ORDER = ["daily", "monthly", "quarterly", ""];
+  var METRIC_GROUP_LABELS = { daily: "Ежедневные", monthly: "Ежемесячные", quarterly: "Ежеквартальные", "": "Без типа" };
 
   function parseMetric_(line) {
     var idx = line.indexOf(РАЗД);
     return idx < 0 ? { freq: "", html: line } : { freq: line.slice(0, idx), html: line.slice(idx + 1) };
   }
 
-  /* Без типа — в конец списка, остальные — по порядку "чаще → реже". Array.sort
-     в браузерах стабилен, поэтому порядок внутри одного типа не перемешивается. */
-  function sortMetrics_(items) {
-    var rank = function (it) { return it.freq in METRIC_FREQ_ORDER ? METRIC_FREQ_ORDER[it.freq] : 99; };
-    return items.slice().sort(function (a, b) { return rank(a) - rank(b); });
+  /* Группируем по периодичности и подписываем каждую группу заголовком —
+     чаще встречающиеся метрики сверху, "Без типа" всегда последней. */
+  function groupMetrics_(items) {
+    var byFreq = {};
+    items.forEach(function (it) {
+      var key = it.freq in METRIC_GROUP_LABELS ? it.freq : "";
+      (byFreq[key] = byFreq[key] || []).push(it);
+    });
+    return METRIC_GROUP_ORDER.filter(function (k) { return (byFreq[k] || []).length; }).map(function (k) {
+      return { label: METRIC_GROUP_LABELS[k], items: byFreq[k] };
+    });
   }
 
   function metricsHtml_(n, editing) {
-    var items = sortMetrics_((n.metrics || []).map(parseMetric_));
+    var items = (n.metrics || []).map(parseMetric_);
+    var groups = groupMetrics_(items);
     if (!editing) {
       if (!items.length) return '<p class="kicker mb">Метрики</p><p class="empty-hint">Пока пусто</p>';
-      return '<p class="kicker mb">Метрики</p><div class="list">' + items.map(metricItemViewHtml_).join("") + "</div>";
+      return '<p class="kicker mb">Метрики</p>' + groups.map(function (g) {
+        return '<p class="metric-group-h">' + эк(g.label) + '</p><div class="list">' +
+          g.items.map(metricItemViewHtml_).join("") + "</div>";
+      }).join("");
     }
-    var rows = items.map(metricItemHtml_).join("");
-    return '<p class="kicker mb">Метрики</p><div class="list" id="list-metrics">' +
-      (rows || '<p class="empty-hint">Пока пусто</p>') + "</div>" +
+    var body = items.length ? groups.map(function (g) {
+      return '<p class="metric-group-h">' + эк(g.label) + '</p><div class="list">' +
+        g.items.map(metricItemHtml_).join("") + "</div>";
+    }).join("") : '<p class="empty-hint">Пока пусто</p>';
+    return '<p class="kicker mb">Метрики</p><div id="list-metrics">' + body + "</div>" +
       '<button type="button" class="listadd" id="metricsAddBtn">+ добавить</button>';
   }
 
