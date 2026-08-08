@@ -51,7 +51,8 @@ a{color:var(--it-teal)}
 .siblings a.current{font-weight:700;color:var(--it-teal-deep);background:var(--it-paper)}
 @media (max-width:900px){
   .layout{flex-direction:column}
-  .minimap-panel{flex-basis:auto;width:100%;position:static}
+  .minimap-panel{flex-basis:auto;width:100%;position:static;order:2}
+  .card{order:1}
 }
 
 .it-header{position:sticky;top:0;z-index:10;background:var(--it-white);padding:16px 0;
@@ -103,7 +104,8 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:40px;line-height:1.
    (как остальные редакционные страницы сайта), с оглавлением сбоку вместо
    горизонтальных вкладок в духе приложений */
 .sections{margin-top:8px}
-.sec-block{margin-top:40px;scroll-margin-top:112px}
+.sec-block{display:none;padding-top:8px}
+.sec-block.on{display:block}
 .toc{display:flex;flex-direction:column;gap:2px;margin-bottom:16px;background:var(--it-white);
   border:1px solid var(--it-line);border-radius:var(--radius-md);padding:8px;box-shadow:var(--shadow-sm)}
 .toc a{display:block;padding:7px 10px;border-radius:6px;text-decoration:none;color:var(--it-grey);
@@ -243,12 +245,12 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
   <p class="status" id="status">Загрузка…</p>
 
   <div class="layout" id="layout" hidden>
-    <div class="card" id="card"></div>
     <aside class="minimap-panel">
       <nav class="toc" id="tocNav"></nav>
       <div class="stage"><svg id="miniSvg" viewBox="0 0 300 300"></svg></div>
       <div class="siblings" id="siblingsBox"></div>
     </aside>
+    <div class="card" id="card"></div>
   </div>
 </div>
 <button type="button" class="it-totop" id="toTop" aria-label="Наверх" title="Наверх">↑</button>
@@ -272,6 +274,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
 
   var ID = new URLSearchParams(location.search).get("id") || "";
   var CURRENT = null;
+  var ACTIVE_SECTION = "overview";
   var РАЗД = String.fromCharCode(31);
   /* Явный режим просмотр/редактирование — по умолчанию всегда чистый
      просмотр, даже для админа. Карандашик над названием включает
@@ -572,7 +575,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       heroHtml_(n) +
       (isCircle ? leaderFieldHtml_(n, editing) : assigneesHtml_(n, editing)) +
       '<div class="sections">' + SECTIONS.map(function (s) {
-        return '<section class="sec-block" id="sec-' + s.key + '">' + sectionBodies[s.key] + "</section>";
+        return '<section class="sec-block' + (s.key === ACTIVE_SECTION ? " on" : "") + '" id="sec-' + s.key + '">' + sectionBodies[s.key] + "</section>";
       }).join("") + "</div>" +
       (editing ? '<div class="savebar"><button type="button" class="btn pri" id="saveAllBtn">Сохранить</button><button type="button" class="btn" id="cancelEditBtn">Отмена</button></div>' : "") +
       "<footer>iTeal — Connect people &amp; computers</footer>";
@@ -609,32 +612,23 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     });
   }
 
-  var tocObserver_ = null;
-
   function wireToc_() {
     var nav = document.getElementById("tocNav");
     if (!nav) return;
     nav.innerHTML = SECTIONS.map(function (s) {
-      return '<a href="#sec-' + s.key + '" data-key="' + s.key + '">' + s.label + "</a>";
+      return '<a href="#" data-key="' + s.key + '" class="' + (s.key === ACTIVE_SECTION ? "active" : "") + '">' + s.label + "</a>";
     }).join("");
     nav.querySelectorAll("a").forEach(function (a) {
       a.addEventListener("click", function (e) {
         e.preventDefault();
-        var target = document.getElementById("sec-" + a.dataset.key);
-        if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+        if (a.dataset.key === ACTIVE_SECTION) return;
+        ACTIVE_SECTION = a.dataset.key;
+        nav.querySelectorAll("a").forEach(function (b) { b.classList.toggle("active", b === a); });
+        document.querySelectorAll(".sec-block").forEach(function (sec) {
+          sec.classList.toggle("on", sec.id === "sec-" + ACTIVE_SECTION);
+        });
       });
     });
-
-    if (tocObserver_) tocObserver_.disconnect();
-    if (!("IntersectionObserver" in window)) return;
-    tocObserver_ = new IntersectionObserver(function (entries) {
-      entries.forEach(function (entry) {
-        if (!entry.isIntersecting) return;
-        var key = entry.target.id.replace("sec-", "");
-        nav.querySelectorAll("a").forEach(function (a) { a.classList.toggle("active", a.dataset.key === key); });
-      });
-    }, { rootMargin: "-112px 0px -70% 0px", threshold: 0 });
-    document.querySelectorAll(".sec-block").forEach(function (el) { tocObserver_.observe(el); });
   }
 
   function wirePencilMenu_() {
