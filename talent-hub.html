@@ -312,6 +312,10 @@ document.getElementById("hubNav").querySelectorAll("a").forEach(function (a) {
       "</tr>";
   }
 
+  /* Поле называется workMail, а не mail: "mail" в payload — это служебное
+     поле с почтой ТЕКУЩЕГО админа для проверки прав (teamAction подставляет
+     его сама поверх всего, что тут собрано) — если назвать рабочую почту
+     сотрудника так же, она молча затрётся почтой админа при каждом сохранении. */
   function gatherRow_(tr) {
     var bday = tr.querySelector(".f-bday").value;
     return {
@@ -321,7 +325,7 @@ document.getElementById("hubNav").querySelectorAll("a").forEach(function (a) {
       phone: tr.querySelector(".f-phone").value.trim(),
       birthday: bday,
       city: tr.querySelector(".f-city").value.trim(),
-      mail: tr.querySelector(".f-mail").value.trim(),
+      workMail: tr.querySelector(".f-mail").value.trim(),
       instagram: tr.querySelector(".f-ig").value.trim()
     };
   }
@@ -370,10 +374,13 @@ document.getElementById("hubNav").querySelectorAll("a").forEach(function (a) {
       if (!data.name) { alert("Укажите имя и фамилию."); return; }
       var btn = tr.querySelector('[data-act="save"]');
       btn.disabled = true;
+      /* data.workMail — рабочая почта сотрудника; локальная модель (MEMBERS,
+         viewRowHtml_) хранит её как .mail (так её отдаёт teamList) — здесь
+         переносим явно, а не спредим data целиком под именем workMail. */
       if (existing) {
         teamAction("teamUpdate", Object.assign({ id: existing.id }, data), function (ok, resOrWhy) {
           if (!ok) { alert("Не сохранилось: " + resOrWhy); btn.disabled = false; return; }
-          Object.assign(existing, data);
+          Object.assign(existing, data, { mail: data.workMail });
           var wrap = document.createElement("tbody");
           wrap.innerHTML = viewRowHtml_(existing);
           tr.replaceWith(wrap.firstChild);
@@ -383,7 +390,7 @@ document.getElementById("hubNav").querySelectorAll("a").forEach(function (a) {
         var id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
         teamAction("teamAdd", Object.assign({ id: id }, data), function (ok, resOrWhy) {
           if (!ok) { alert("Не сохранилось: " + resOrWhy); btn.disabled = false; return; }
-          var m = Object.assign({ id: id }, data);
+          var m = Object.assign({ id: id }, data, { mail: data.workMail });
           MEMBERS.push(m);
           var wrap = document.createElement("tbody");
           wrap.innerHTML = viewRowHtml_(m);
