@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@500;700&family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/d3@7"></script>
 <style>
 :root{
   --it-teal:#43836D; --it-teal-deep:#2C5748; --it-mint:#7AC1A8; --it-accent:#FFD54F;
@@ -24,7 +25,30 @@ body{background:var(--it-paper);color:var(--it-ink-soft);font-family:var(--font-
 img{display:block}
 a{color:var(--it-teal)}
 :focus-visible{outline:2px solid var(--it-teal);outline-offset:2px}
-.wrap{max-width:820px;margin:0 auto}
+.wrap{max-width:1180px;margin:0 auto}
+.layout{display:flex;gap:24px;align-items:flex-start}
+.layout[hidden]{display:none}
+.card{flex:1;min-width:0;max-width:820px}
+.minimap-panel{flex:0 0 300px;min-width:0;position:sticky;top:96px}
+.minimap-panel .stage{background:var(--it-white);border:1px solid var(--it-line);border-radius:var(--radius-md);
+  padding:10px;box-shadow:var(--shadow-sm)}
+.minimap-panel svg{display:block;width:100%;height:auto}
+.node-circle{cursor:pointer}
+.node-circle.root{fill:rgba(44,87,72,.03);stroke:var(--it-teal-deep);stroke-width:2}
+.node-circle.container{fill:rgba(67,131,109,.08);stroke:var(--it-teal);stroke-width:1.3}
+.node-circle.leaf-filled{fill:var(--it-teal);stroke:var(--it-teal-deep);stroke-width:1.3}
+.node-circle.leaf-empty{fill:var(--it-white);stroke:var(--it-mint);stroke-width:1.3}
+.node-circle.current{stroke:var(--it-accent);stroke-width:3}
+.siblings{margin-top:16px;background:var(--it-white);border:1px solid var(--it-line);border-radius:var(--radius-md);
+  padding:14px;box-shadow:var(--shadow-sm)}
+.siblings h3{font:700 12px var(--font-heading);text-transform:uppercase;letter-spacing:.06em;color:var(--it-grey);margin:0 0 8px}
+.siblings a{display:block;padding:6px 8px;border-radius:6px;text-decoration:none;color:var(--it-ink-soft);font-size:14px}
+.siblings a:hover{background:var(--it-paper)}
+.siblings a.current{font-weight:700;color:var(--it-teal-deep);background:var(--it-paper)}
+@media (max-width:900px){
+  .layout{flex-direction:column}
+  .minimap-panel{flex-basis:auto;width:100%;position:static}
+}
 
 .it-header{position:sticky;top:0;z-index:10;background:var(--it-white);padding:16px 0;
   margin:0 0 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
@@ -171,8 +195,9 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:40px;line-height:1.
 .pencil-btn:hover{background:var(--it-paper);border-color:var(--it-teal)}
 .pencilwrap{position:relative}
 .pencilmenu{position:absolute;top:34px;left:0;background:var(--it-white);border:1px solid var(--it-line);
-  border-radius:10px;box-shadow:var(--shadow-md);padding:6px;display:flex;flex-direction:column;
-  min-width:150px;z-index:20}
+  border-radius:10px;box-shadow:var(--shadow-md);padding:6px;flex-direction:column;
+  min-width:150px;z-index:20;display:none}
+.pencilmenu.show{display:flex}
 .pencilmenu button{font:500 14px var(--font-body);color:var(--it-ink-soft);background:none;border:none;
   text-align:left;padding:8px 10px;border-radius:6px;cursor:pointer}
 .pencilmenu button:hover{background:var(--it-paper)}
@@ -207,7 +232,13 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
 
   <p class="status" id="status">Загрузка…</p>
 
-  <div class="card" id="card" hidden></div>
+  <div class="layout" id="layout" hidden>
+    <div class="card" id="card"></div>
+    <aside class="minimap-panel">
+      <div class="stage"><svg id="miniSvg" viewBox="0 0 300 300"></svg></div>
+      <div class="siblings" id="siblingsBox"></div>
+    </aside>
+  </div>
 </div>
 <button type="button" class="it-totop" id="toTop" aria-label="Наверх" title="Наверх">↑</button>
 
@@ -314,9 +345,12 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
         return;
       }
       CURRENT = node;
+      buildIndex_(res.nodes || []);
       $("#status").hidden = true;
-      $("#card").hidden = false;
+      $("#layout").hidden = false;
       buildCard_(CURRENT);
+      buildMinimap_();
+      buildSiblings_();
     }, function (why) {
       $("#status").textContent = "Нет связи с сервером: " + why + ".";
       $("#status").className = "status err";
@@ -479,7 +513,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       '<div class="titlebar"><p class="kicker">Роль в iTeal</p>' +
       (ЭТО_АДМИН && !editing
         ? '<div class="pencilwrap"><button type="button" class="pencil-btn" id="editToggle" title="Действия" aria-label="Действия">✎</button>' +
-          '<div class="pencilmenu" id="pencilMenu" hidden>' +
+          '<div class="pencilmenu" id="pencilMenu">' +
           '<button type="button" data-action="edit">Редактировать</button>' +
           '<button type="button" data-action="delete">Удалить</button>' +
           "</div></div>"
@@ -550,15 +584,15 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
 
     toggle.addEventListener("click", function (e) {
       e.stopPropagation();
-      menu.hidden = !menu.hidden;
+      menu.classList.toggle("show");
     });
     menu.querySelector('[data-action="edit"]').addEventListener("click", function () {
-      menu.hidden = true;
+      menu.classList.remove("show");
       EDITING = true;
       buildCard_(CURRENT);
     });
     menu.querySelector('[data-action="delete"]').addEventListener("click", function () {
-      menu.hidden = true;
+      menu.classList.remove("show");
       if (!confirm('Удалить роль «' + CURRENT.name + '» насовсем? Это нельзя отменить.')) return;
       orgAction("orgDelete", { id: ID }, function (ok, resOrWhy) {
         if (!ok) { alert("Не получилось: " + resOrWhy); return; }
@@ -570,7 +604,9 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
   document.addEventListener("click", function (e) {
     var menu = document.getElementById("pencilMenu");
     var toggle = document.getElementById("editToggle");
-    if (menu && !menu.hidden && e.target !== toggle && !menu.contains(e.target)) menu.hidden = true;
+    if (menu && menu.classList.contains("show") && e.target !== toggle && !menu.contains(e.target)) {
+      menu.classList.remove("show");
+    }
   });
 
   function heroHtml_(n) {
@@ -872,6 +908,86 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     var d = new Date(iso);
     if (isNaN(d.getTime())) return iso || "";
     return d.toLocaleString("ru-RU");
+  }
+
+  /* ------------------------------  мини-карта структуры  ------------------- */
+  /* Чтобы при переходе на роль/круг не терялось ощущение "где я нахожусь" —
+     справа держим уменьшенную версию всей карты (та же раскладка d3.pack(),
+     что на org-structure.html) с подсветкой текущего узла, плюс список
+     соседей по тому же кругу снизу. Клик по роли ведёт на её страницу,
+     клик по кругу — на карту структуры с этим кругом открытым. */
+
+  var ALL_NODES = {};
+  var ALL_CHILDREN = {};
+
+  function buildIndex_(nodes) {
+    ALL_NODES = {}; ALL_CHILDREN = {};
+    nodes.forEach(function (n) { ALL_NODES[n.id] = n; ALL_CHILDREN[n.id] = []; });
+    nodes.forEach(function (n) { if (n.parent && ALL_CHILDREN[n.parent]) ALL_CHILDREN[n.parent].push(n.id); });
+  }
+
+  function isLeaf_(id) { return (ALL_CHILDREN[id] || []).length === 0; }
+
+  function toHierarchy_(id) {
+    var n = ALL_NODES[id];
+    return { id: n.id, name: n.name, children: (ALL_CHILDREN[id] || []).map(toHierarchy_) };
+  }
+
+  function goToNode_(id) {
+    if (id === ID) return;
+    if (id !== "root" && isLeaf_(id)) location.href = "role.html?id=" + encodeURIComponent(id);
+    else location.href = "org-structure.html?focus=" + encodeURIComponent(id);
+  }
+
+  function buildMinimap_() {
+    if (!ALL_NODES.root) return;
+    var W = 300, H = 300;
+    var root = d3.hierarchy(toHierarchy_("root"), function (d) { return d.children; }).count();
+    var pack = d3.pack().size([W - 6, H - 6]).padding(function (d) { return d.depth === 0 ? 3 : 7; });
+    pack(root);
+    root.descendants().forEach(function (d) {
+      if (d.depth === 0) return;
+      d.r *= 0.78;
+      d.x = root.x + (d.x - root.x) * 0.78;
+      d.y = root.y + (d.y - root.y) * 0.78;
+    });
+
+    var svg = document.getElementById("miniSvg");
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    svg.innerHTML = "";
+    var ns = "http://www.w3.org/2000/svg";
+    var g = document.createElementNS(ns, "g");
+    g.setAttribute("transform", "translate(3,3)");
+    svg.appendChild(g);
+
+    root.descendants().forEach(function (d) {
+      var leaf = d.data.id !== "root" && isLeaf_(d.data.id);
+      var filled = leaf && (ALL_NODES[d.data.id].assignees || []).length > 0;
+      var kind = leaf ? (filled ? "leaf-filled" : "leaf-empty") : (d.depth === 0 ? "root" : "container");
+      var c = document.createElementNS(ns, "circle");
+      c.setAttribute("cx", d.x); c.setAttribute("cy", d.y); c.setAttribute("r", d.r);
+      c.setAttribute("class", "node-circle " + kind + (d.data.id === ID ? " current" : ""));
+      c.addEventListener("click", function () { goToNode_(d.data.id); });
+      var title = document.createElementNS(ns, "title");
+      title.textContent = d.data.name;
+      c.appendChild(title);
+      g.appendChild(c);
+    });
+  }
+
+  function buildSiblings_() {
+    var box = document.getElementById("siblingsBox");
+    var n = ALL_NODES[ID];
+    if (!n || !box) { if (box) box.innerHTML = ""; return; }
+    var parent = ALL_NODES[n.parent];
+    var siblingIds = parent ? (ALL_CHILDREN[parent.id] || []) : [];
+    if (!parent || !siblingIds.length) { box.innerHTML = ""; return; }
+    var rows = siblingIds.map(function (sid) {
+      var s = ALL_NODES[sid];
+      var href = (sid !== "root" && isLeaf_(sid)) ? "role.html?id=" + encodeURIComponent(sid) : "org-structure.html?focus=" + encodeURIComponent(sid);
+      return '<a href="' + href + '"' + (sid === ID ? ' class="current"' : "") + ">" + эк(s.name) + "</a>";
+    }).join("");
+    box.innerHTML = '<h3>' + эк(parent.name) + "</h3>" + rows;
   }
 
   document.getElementById("toTop").addEventListener("click", function () {

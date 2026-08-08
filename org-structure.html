@@ -52,6 +52,7 @@ h1{font:700 32px/1.15 var(--font-heading);color:var(--it-teal-deep);margin:16px 
 .status.err{color:var(--status-alert-text)}
 
 .layout{margin-top:24px;display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap}
+.layout[hidden]{display:none}
 .stage{flex:1 1 560px;min-width:280px;background:var(--it-white);border:1px solid var(--it-line);
   border-radius:16px;box-shadow:var(--shadow-sm);padding:12px}
 .stage svg{display:block;width:100%;height:auto}
@@ -377,7 +378,8 @@ ul.plain li::before{content:"— "}
       $("#status").hidden = true;
       $("#layout").hidden = false;
       render();
-      if (SELECTED && NODES[SELECTED]) selectNode(SELECTED); else renderPanelEmpty();
+      var focus = SELECTED || new URLSearchParams(location.search).get("focus");
+      if (focus && NODES[focus]) selectNode(focus); else renderPanelEmpty();
     }, function (why) {
       $("#status").textContent = "Нет связи с сервером: " + why + ". " + HINT;
       $("#status").className = "status err";
