@@ -532,7 +532,11 @@ ul.plain li::before{content:"— "}
   function render() {
     if (!NODES.root) return;
     var root = d3.hierarchy(toHierarchy("root"), function (d) { return d.children; }).count();
-    var pack = d3.pack().size([W - 8, H - 8]).padding(function (d) { return d.depth === 0 ? 4 : 10; });
+    // Раньше зазор между кругами первого уровня (Financial jungle, Три
+    // производственные команды и т.д.) был всего 4px — на глаз это
+    // читалось как "круги заходят друг на друга", особенно когда в одном
+    // из них резко прибавилось ролей и он вырос сильнее соседей.
+    var pack = d3.pack().size([W - 8, H - 8]).padding(function (d) { return d.depth === 0 ? 18 : 10; });
     pack(root);
 
     root.descendants().forEach(function (d) {
@@ -593,11 +597,20 @@ ul.plain li::before{content:"— "}
         // Плашка-подложка под названием круга (как в Glassfrog) — на пёстром
         // фоне из дочерних кругов голый текст было не разобрать.
         var maxLineLen = Math.max.apply(null, layout.lines.map(function (l) { return l.length; }));
-        var boxW = Math.min(d.r * 1.9, maxLineLen * layout.fontSize * 0.62 + 16);
+        var idealW = maxLineLen * layout.fontSize * 0.62 + 16;
         var boxH = layout.lines.length * lineHeight + 8;
+        var boxY = centered ? d.y - boxH / 2 : startY - layout.fontSize - 2;
+        // Ширина плашки раньше считалась без оглядки на сам круг — у
+        // маленьких кругов плашка визуально вылезала за их границу и
+        // выглядела так, будто соседний круг "заходит" на него. Здесь
+        // считаем реальную ширину круга на высоте плашки (хорда) и не
+        // даём плашке быть шире этого — с небольшим отступом от края.
+        var dyToCenter = Math.abs(boxY + boxH / 2 - d.y);
+        var chordHalf = Math.sqrt(Math.max(0, d.r * d.r - dyToCenter * dyToCenter));
+        var boxW = Math.min(idealW, chordHalf * 1.8);
         var rect = document.createElementNS(ns, "rect");
         rect.setAttribute("x", d.x - boxW / 2);
-        rect.setAttribute("y", centered ? d.y - boxH / 2 : startY - layout.fontSize - 2);
+        rect.setAttribute("y", boxY);
         rect.setAttribute("width", boxW);
         rect.setAttribute("height", boxH);
         rect.setAttribute("rx", boxH / 2);
@@ -628,10 +641,15 @@ ul.plain li::before{content:"— "}
   function layoutLabel_(name, r, leaf) {
     var text = String(name || "").trim();
     if (!text) return { fontSize: 0, lines: [] };
-    var maxLines = leaf ? 3 : 2;
+    // У контейнеров раньше было только 2 строки и более узкая ширина —
+    // при коротком, но составном названии ("Financial jungle") на тесном
+    // круге это раньше приводило к разрыву слова посреди буквы вместо
+    // переноса между словами. Третья строка и чуть более широкий допуск
+    // почти всегда снимают необходимость лезть внутрь слова.
+    var maxLines = 3;
     var minFs = 7;
     var fs = Math.max(minFs, Math.min(leaf ? 13 : 12, r / (leaf ? 3.2 : 3.6)));
-    var availWidth = r * (leaf ? 1.5 : 1.35);
+    var availWidth = r * 1.5;
     var words = text.split(/\s+/);
     var lines = [];
     for (var attempt = 0; attempt < 6; attempt++) {
