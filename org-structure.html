@@ -66,6 +66,7 @@ h1{font:700 32px/1.15 var(--font-heading);color:var(--it-teal-deep);margin:16px 
   text-anchor:middle;pointer-events:none;user-select:none}
 .node-label.on-fill{fill:#fff}
 .node-label.container{fill:var(--it-teal-deep)}
+.node-label-bg{fill:var(--it-white);fill-opacity:.9;stroke:var(--it-line);stroke-width:1;cursor:pointer}
 
 .panel{flex:0 0 340px;min-width:280px;background:var(--it-white);border:1px solid var(--it-line);
   border-radius:16px;box-shadow:var(--shadow-sm);padding:22px;max-height:80vh;overflow:auto}
@@ -109,9 +110,14 @@ ul.plain li::before{content:"— "}
 .editable ul,.editable ol,.panel .ph ul,.panel .ph ol{padding-left:22px;margin:6px 0}
 .editable ul ul,.editable ol ol,.editable ul ol,.editable ol ul{padding-left:18px;margin:2px 0}
 .editable li,.panel .ph li{margin:2px 0}
+/* visibility, а не display: сама плашка не должна пропадать из потока —
+   иначе при её появлении/исчезновении всё, что ниже (домены, обязанности,
+   кнопка "+ добавить"), скачет по высоте, и клик может промахнуться мимо
+   уехавшей кнопки (баг "кнопки прыгают, надо жать дважды"). */
 .rtbar.floating{position:sticky;top:16px;z-index:9;background:var(--it-white);border:1px solid var(--it-line);
-  border-radius:10px;box-shadow:var(--shadow-sm);padding:6px 8px;margin:0 0 14px;display:none;width:max-content}
-.rtbar.floating.show{display:flex}
+  border-radius:10px;box-shadow:var(--shadow-sm);padding:6px 8px;margin:0 0 14px;width:max-content;
+  visibility:hidden;pointer-events:none}
+.rtbar.floating.show{visibility:visible;pointer-events:auto}
 .rtbar{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
 .rtbar button{width:28px;height:28px;border:1px solid var(--it-line);background:var(--it-white);
   border-radius:6px;cursor:pointer;font:600 12px var(--font-body);color:var(--it-ink-soft)}
@@ -544,6 +550,15 @@ ul.plain li::before{content:"— "}
     g.setAttribute("transform", "translate(4,4)");
     svg.appendChild(g);
 
+    /* Два прохода: сначала ВСЕ круги, потом ВСЕ подписи одним верхним
+       слоем. Раньше подпись каждого узла рисовалась сразу рядом с его
+       кругом, и круг ребёнка (добавленный в DOM позже родителя) перекрывал
+       название родительского круга, если оно визуально попадало под
+       ребёнка — при плотной раскладке это было почти всегда. Отдельный
+       верхний слой гарантирует, что подпись не спрячется ни под одним
+       кругом, вне зависимости от их вложенности. */
+    var labelsLayer = document.createElementNS(ns, "g");
+
     root.descendants().forEach(function (d) {
       var leaf = d.data.id !== "root" && isLeaf(d.data.id);
       var filled = leaf && (NODES[d.data.id].assignees || []).length > 0;
@@ -555,26 +570,49 @@ ul.plain li::before{content:"— "}
       var circleKind = leaf ? (filled ? "leaf-filled" : "leaf-empty") : (d.depth === 0 ? "root" : "container");
       c.setAttribute("class", "node-circle " + circleKind + (d.data.id === SELECTED ? " selected" : ""));
       wrap.appendChild(c);
+      g.appendChild(wrap);
 
       var showLabel = leaf ? d.r >= 16 : d.r >= 26;
-      if (showLabel) {
-        var layout = layoutLabel_(d.data.name, d.r, leaf);
-        var cls = "node-label" + (filled ? " on-fill" : "") + (!leaf ? " container" : "");
-        var lineHeight = layout.fontSize * 1.15;
-        var startY = leaf ? d.y - (layout.lines.length - 1) * lineHeight / 2 : d.y - d.r + layout.fontSize + 4;
-        layout.lines.forEach(function (line, i) {
-          var t = document.createElementNS(ns, "text");
-          t.setAttribute("x", d.x);
-          t.setAttribute("y", startY + i * lineHeight);
-          t.setAttribute("font-size", layout.fontSize);
-          t.setAttribute("class", cls);
-          if (leaf) t.setAttribute("dominant-baseline", "middle");
-          t.textContent = line;
-          wrap.appendChild(t);
-        });
+      if (!showLabel) return;
+      var layout = layoutLabel_(d.data.name, d.r, leaf);
+      if (!layout.lines.length) return;
+      var cls = "node-label" + (filled ? " on-fill" : "") + (!leaf ? " container" : "");
+      var lineHeight = layout.fontSize * 1.15;
+      var startY = leaf ? d.y - (layout.lines.length - 1) * lineHeight / 2 : d.y - d.r + layout.fontSize + 2;
+
+      var labelGroup = document.createElementNS(ns, "g");
+      labelGroup.setAttribute("data-id", d.data.id);
+
+      if (!leaf) {
+        // Плашка-подложка под названием круга (как в Glassfrog) — на пёстром
+        // фоне из дочерних кругов голый текст было не разобрать.
+        var maxLineLen = Math.max.apply(null, layout.lines.map(function (l) { return l.length; }));
+        var boxW = Math.min(d.r * 1.9, maxLineLen * layout.fontSize * 0.62 + 16);
+        var boxH = layout.lines.length * lineHeight + 8;
+        var rect = document.createElementNS(ns, "rect");
+        rect.setAttribute("x", d.x - boxW / 2);
+        rect.setAttribute("y", startY - layout.fontSize - 2);
+        rect.setAttribute("width", boxW);
+        rect.setAttribute("height", boxH);
+        rect.setAttribute("rx", boxH / 2);
+        rect.setAttribute("class", "node-label-bg");
+        labelGroup.appendChild(rect);
       }
-      g.appendChild(wrap);
+
+      layout.lines.forEach(function (line, i) {
+        var t = document.createElementNS(ns, "text");
+        t.setAttribute("x", d.x);
+        t.setAttribute("y", startY + i * lineHeight);
+        t.setAttribute("font-size", layout.fontSize);
+        t.setAttribute("class", cls);
+        if (leaf) t.setAttribute("dominant-baseline", "middle");
+        t.textContent = line;
+        labelGroup.appendChild(t);
+      });
+      labelsLayer.appendChild(labelGroup);
     });
+
+    g.appendChild(labelsLayer);
   }
 
   /* Подпись круга/роли — не обрезаем в одну строку с многоточием, а
@@ -870,8 +908,14 @@ ul.plain li::before{content:"— "}
     var id = (isRole ? "r-" : "c-") + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     orgAction("orgAddNode", { id: id, parent: parentId, name: name }, function (ok, resOrWhy) {
       if (!ok) { itAlert_("Не получилось: " + resOrWhy); return; }
-      SELECTED = id;
+      /* Для роли SELECTED специально НЕ трогаем: load() ниже сам
+         восстанавливает выделение через selectNode(SELECTED), а тот для
+         роли (лист) сразу делает location.href на role.html — вместе с
+         window.open() чуть ниже страница открывалась бы дважды: в новой
+         вкладке и поверх текущей. Для круга это же поведение и нужно —
+         он остаётся выбранным и показывает свою панель на этой странице. */
       if (isRole) window.open("role.html?id=" + encodeURIComponent(id), "_blank");
+      else SELECTED = id;
       load();
     });
   }

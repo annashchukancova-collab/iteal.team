@@ -204,9 +204,13 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:40px;line-height:1.
 .item .txt.editable{min-height:1.4em}
 .citem .ctext.editable{min-height:1.3em;padding:2px 0}
 
+/* visibility, а не display: сама плашка не должна пропадать из потока —
+   иначе при её появлении/исчезновении соседние элементы скачут по высоте
+   и клик может промахнуться мимо уехавшей кнопки. */
 .rtbar.floating{position:sticky;top:96px;z-index:9;background:var(--it-white);border:1px solid var(--it-line);
-  border-radius:10px;box-shadow:var(--shadow-md);padding:6px 8px;margin:16px 0 0;display:none;width:max-content}
-.rtbar.floating.show{display:flex}
+  border-radius:10px;box-shadow:var(--shadow-md);padding:6px 8px;margin:16px 0 0;width:max-content;
+  visibility:hidden;pointer-events:none}
+.rtbar.floating.show{visibility:visible;pointer-events:auto}
 .rtbar.floating.on-teal{background:var(--it-teal-deep)}
 
 .histlist{display:flex;flex-direction:column;gap:10px}
