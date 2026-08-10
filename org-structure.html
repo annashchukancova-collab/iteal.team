@@ -556,6 +556,19 @@ ul.plain li::before{content:"— "}
 
     var actions = $("#panelActions");
 
+    /* У круга без единой роли внутри клик по нему сразу открывает
+       role.html (см. selectNode) — там доступны все вкладки (политики,
+       проекты, чеклисты, цели, метрики, фото, история). У круга С ролями
+       внутри этот переход раньше был недоступен вообще — эта кнопка даёт
+       туда попасть и когда внутри уже есть роли. */
+    var openBtn = document.createElement("button");
+    openBtn.type = "button"; openBtn.className = "btn";
+    openBtn.textContent = "Перейти в круг →";
+    openBtn.addEventListener("click", function () {
+      location.href = "role.html?id=" + encodeURIComponent(id);
+    });
+    actions.appendChild(openBtn);
+
     if (ЭТО_АДМИН) {
       wireFloatBar_();
       $("#fName").addEventListener("change", function () { saveCurrentNode({ name: $("#fName").value.trim() }, "Название"); });
