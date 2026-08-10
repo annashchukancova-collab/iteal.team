@@ -133,6 +133,25 @@ ul.plain li::before{content:"— "}
   h1{font-size:26px}
   .panel{flex-basis:100%}
 }
+
+/* ===== Модалки вместо prompt()/confirm()/alert() ===== */
+.it-modal-overlay{position:fixed;inset:0;z-index:1000;background:rgba(28,38,34,.45);
+  display:flex;align-items:center;justify-content:center;padding:20px}
+.it-modal{width:100%;max-width:420px;background:var(--it-white);border-radius:16px;
+  padding:24px;box-shadow:0 20px 60px rgba(28,38,34,.28)}
+.it-modal-msg{font:400 14px/1.5 var(--font-body);color:var(--it-ink-soft);margin:0 0 16px;white-space:pre-line}
+.it-modal-input{display:block;width:100%;box-sizing:border-box;font:400 14px/1.5 var(--font-body);
+  color:var(--it-ink);background:var(--it-white);border:1px solid var(--it-line);
+  border-radius:10px;padding:10px 12px;margin-bottom:16px}
+.it-modal-input:focus{outline:none;border-color:var(--it-teal)}
+.it-modal-actions{display:flex;justify-content:flex-end;gap:10px}
+.it-modal-btn{font:600 14px var(--font-body);border-radius:8px;padding:9px 18px;
+  cursor:pointer;border:1px solid var(--it-teal);background:var(--it-white);color:var(--it-ink-soft)}
+.it-modal-btn:hover{background:var(--it-paper)}
+.it-modal-ok{background:var(--it-teal);border-color:var(--it-teal);color:#fff}
+.it-modal-ok:hover{background:var(--it-teal-deep)}
+.it-modal-ok.danger{background:var(--status-alert);border-color:var(--status-alert)}
+.it-modal-ok.danger:hover{background:var(--status-alert-text)}
 </style>
 </head>
 <body>
@@ -159,6 +178,76 @@ ul.plain li::before{content:"— "}
 <script>
 (function () {
   "use strict";
+
+  /* Стилизованные модалки вместо prompt()/confirm()/alert() — окно по центру
+     экрана в стиле сайта вместо браузерного диалога, прибитого к углу вкладки.
+     Все три — асинхронные (возвращают Promise). */
+  function itModal_(opts) {
+    return new Promise(function (resolve) {
+      var overlay = document.createElement("div");
+      overlay.className = "it-modal-overlay";
+      var box = document.createElement("div");
+      box.className = "it-modal";
+      box.setAttribute("role", "dialog");
+      box.setAttribute("aria-modal", "true");
+      if (opts.message) {
+        var msg = document.createElement("div");
+        msg.className = "it-modal-msg";
+        msg.textContent = opts.message;
+        box.appendChild(msg);
+      }
+      var input = null;
+      if (opts.isPrompt) {
+        input = document.createElement("input");
+        input.type = "text";
+        input.className = "it-modal-input";
+        input.value = opts.defaultValue || "";
+        box.appendChild(input);
+      }
+      var actions = document.createElement("div");
+      actions.className = "it-modal-actions";
+      var cancelBtn = null;
+      if (opts.showCancel !== false) {
+        cancelBtn = document.createElement("button");
+        cancelBtn.type = "button";
+        cancelBtn.className = "it-modal-btn";
+        cancelBtn.textContent = opts.cancelText || "Отмена";
+        actions.appendChild(cancelBtn);
+      }
+      var okBtn = document.createElement("button");
+      okBtn.type = "button";
+      okBtn.className = "it-modal-btn it-modal-ok" + (opts.danger ? " danger" : "");
+      okBtn.textContent = opts.okText || "ОК";
+      actions.appendChild(okBtn);
+      box.appendChild(actions);
+      overlay.appendChild(box);
+      document.body.appendChild(overlay);
+
+      function close(result) {
+        document.removeEventListener("keydown", onKey);
+        overlay.remove();
+        resolve(result);
+      }
+      function onKey(e) {
+        if (e.key === "Escape") close(opts.isPrompt ? null : false);
+        else if (e.key === "Enter" && opts.isPrompt) { e.preventDefault(); close(input.value); }
+      }
+      okBtn.addEventListener("click", function () { close(opts.isPrompt ? input.value : true); });
+      if (cancelBtn) cancelBtn.addEventListener("click", function () { close(opts.isPrompt ? null : false); });
+      overlay.addEventListener("mousedown", function (e) { if (e.target === overlay) close(opts.isPrompt ? null : false); });
+      document.addEventListener("keydown", onKey);
+      setTimeout(function () { (input || okBtn).focus(); if (input) input.select(); }, 0);
+    });
+  }
+  function itPrompt_(message, defaultValue) {
+    return itModal_({ message: message, isPrompt: true, defaultValue: defaultValue });
+  }
+  function itConfirm_(message, danger) {
+    return itModal_({ message: message, isPrompt: false, okText: danger ? "Удалить" : "Да", danger: !!danger });
+  }
+  function itAlert_(message) {
+    return itModal_({ message: message, isPrompt: false, showCancel: false, okText: "Понятно" });
+  }
 
   var SEND_URL = "https://script.google.com/a/macros/iteal.expert/s/AKfycbyvNwCQIvoEIHytg18mItMlTpVbOEaijGxsjjCZ7om4jU7EsKH4DZtmh--FFVmtQrQPcw/exec";
 
@@ -252,7 +341,7 @@ ul.plain li::before{content:"— "}
         ctrl.addEventListener("mousedown", function (e) { e.preventDefault(); SAVED_RANGE = getRange_(); });
         ctrl.addEventListener("click", function () {
           if (!ACTIVE_EDITABLE || !SAVED_RANGE || SAVED_RANGE.collapsed) {
-            alert("Сначала выделите текст, к которому нужно добавить ссылку.");
+            itAlert_("Сначала выделите текст, к которому нужно добавить ссылку.");
             return;
           }
           var url = prompt("Ссылка (https://…):", "https://");
@@ -619,14 +708,15 @@ ul.plain li::before{content:"— "}
 
     var moveSelect = document.createElement("select");
     moveSelect.innerHTML = '<option value="">Переместить в…</option>' + moveOptionsHtml(id);
-    moveSelect.addEventListener("change", function () {
+    moveSelect.addEventListener("change", async function () {
       var target = moveSelect.value;
       if (!target) return;
-      if (!confirm('Переместить «' + n.name + '» в «' + (NODES[target] ? NODES[target].name : target) + '»?')) {
+      var ok1 = await itConfirm_('Переместить «' + n.name + '» в «' + (NODES[target] ? NODES[target].name : target) + '»?');
+      if (!ok1) {
         moveSelect.value = ""; return;
       }
       orgAction("orgReparent", { id: id, parent: target }, function (ok, resOrWhy) {
-        if (!ok) { alert("Не получилось: " + resOrWhy); moveSelect.value = ""; return; }
+        if (!ok) { itAlert_("Не получилось: " + resOrWhy); moveSelect.value = ""; return; }
         load();
       });
     });
@@ -636,13 +726,13 @@ ul.plain li::before{content:"— "}
     delBtn.type = "button"; delBtn.className = "btn danger";
     var descCount = descendantIds(id).length;
     delBtn.textContent = "Удалить" + (descCount ? " (вместе с " + descCount + " вложенными)" : "");
-    delBtn.addEventListener("click", function () {
+    delBtn.addEventListener("click", async function () {
       var msg = descCount
         ? '«' + n.name + '» содержит ' + descCount + ' вложенных элементов. Удалить всё вместе с ними?'
         : 'Удалить «' + n.name + '»?';
-      if (!confirm(msg)) return;
+      if (!await itConfirm_(msg, true)) return;
       orgAction("orgDelete", { id: id }, function (ok, resOrWhy) {
-        if (!ok) { alert("Не получилось: " + resOrWhy); return; }
+        if (!ok) { itAlert_("Не получилось: " + resOrWhy); return; }
         SELECTED = null;
         load();
       });
@@ -752,7 +842,7 @@ ul.plain li::before{content:"— "}
       goals: n.goals, metrics: n.metrics, attachments: n.attachments
     }, overrides, { changeLabel: changeLabel || "Изменено" });
     orgAction("orgUpdateFields", payload, function (ok, resOrWhy) {
-      if (!ok) { alert("Не сохранилось: " + resOrWhy); return; }
+      if (!ok) { itAlert_("Не сохранилось: " + resOrWhy); return; }
       Object.assign(n, overrides);
       render();
     });
@@ -765,13 +855,13 @@ ul.plain li::before{content:"— "}
      ID (это base36 от времени/случайного числа), так что ложных срабатываний
      на существующих узлах быть не может. Как только у круга появятся дети,
      он и без префикса будет отрисовываться как контейнер. */
-  function addChild(parentId, isRole) {
-    var name = prompt(isRole ? "Название новой роли:" : "Название нового круга:");
+  async function addChild(parentId, isRole) {
+    var name = await itPrompt_(isRole ? "Название новой роли:" : "Название нового круга:");
     name = (name || "").trim();
     if (!name) return;
     var id = (isRole ? "r-" : "c-") + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     orgAction("orgAddNode", { id: id, parent: parentId, name: name }, function (ok, resOrWhy) {
-      if (!ok) { alert("Не получилось: " + resOrWhy); return; }
+      if (!ok) { itAlert_("Не получилось: " + resOrWhy); return; }
       SELECTED = id;
       if (isRole) window.open("role.html?id=" + encodeURIComponent(id), "_blank");
       load();

@@ -78,6 +78,25 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
 @media (max-width:640px){
   h1{font-size:26px}
 }
+
+/* ===== Модалки вместо prompt()/confirm()/alert() ===== */
+.it-modal-overlay{position:fixed;inset:0;z-index:1000;background:rgba(28,38,34,.45);
+  display:flex;align-items:center;justify-content:center;padding:20px}
+.it-modal{width:100%;max-width:420px;background:var(--it-white);border-radius:16px;
+  padding:24px;box-shadow:0 20px 60px rgba(28,38,34,.28)}
+.it-modal-msg{font:400 14px/1.5 var(--font-body);color:var(--it-ink-soft);margin:0 0 16px;white-space:pre-line}
+.it-modal-input{display:block;width:100%;box-sizing:border-box;font:400 14px/1.5 var(--font-body);
+  color:var(--it-ink);background:var(--it-white);border:1px solid var(--it-line);
+  border-radius:10px;padding:10px 12px;margin-bottom:16px}
+.it-modal-input:focus{outline:none;border-color:var(--it-teal)}
+.it-modal-actions{display:flex;justify-content:flex-end;gap:10px}
+.it-modal-btn{font:600 14px var(--font-body);border-radius:8px;padding:9px 18px;
+  cursor:pointer;border:1px solid var(--it-teal);background:var(--it-white);color:var(--it-ink-soft)}
+.it-modal-btn:hover{background:var(--it-paper)}
+.it-modal-ok{background:var(--it-teal);border-color:var(--it-teal);color:#fff}
+.it-modal-ok:hover{background:var(--it-teal-deep)}
+.it-modal-ok.danger{background:#B4483C;border-color:#B4483C}
+.it-modal-ok.danger:hover{background:#93372C}
 </style>
 </head>
 <body>
@@ -108,6 +127,76 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
 <script>
 (function () {
   "use strict";
+
+  /* Стилизованные модалки вместо prompt()/confirm()/alert() — окно по центру
+     экрана в стиле сайта вместо браузерного диалога, прибитого к углу вкладки.
+     Все три — асинхронные (возвращают Promise). */
+  function itModal_(opts) {
+    return new Promise(function (resolve) {
+      var overlay = document.createElement("div");
+      overlay.className = "it-modal-overlay";
+      var box = document.createElement("div");
+      box.className = "it-modal";
+      box.setAttribute("role", "dialog");
+      box.setAttribute("aria-modal", "true");
+      if (opts.message) {
+        var msg = document.createElement("div");
+        msg.className = "it-modal-msg";
+        msg.textContent = opts.message;
+        box.appendChild(msg);
+      }
+      var input = null;
+      if (opts.isPrompt) {
+        input = document.createElement("input");
+        input.type = "text";
+        input.className = "it-modal-input";
+        input.value = opts.defaultValue || "";
+        box.appendChild(input);
+      }
+      var actions = document.createElement("div");
+      actions.className = "it-modal-actions";
+      var cancelBtn = null;
+      if (opts.showCancel !== false) {
+        cancelBtn = document.createElement("button");
+        cancelBtn.type = "button";
+        cancelBtn.className = "it-modal-btn";
+        cancelBtn.textContent = opts.cancelText || "Отмена";
+        actions.appendChild(cancelBtn);
+      }
+      var okBtn = document.createElement("button");
+      okBtn.type = "button";
+      okBtn.className = "it-modal-btn it-modal-ok" + (opts.danger ? " danger" : "");
+      okBtn.textContent = opts.okText || "ОК";
+      actions.appendChild(okBtn);
+      box.appendChild(actions);
+      overlay.appendChild(box);
+      document.body.appendChild(overlay);
+
+      function close(result) {
+        document.removeEventListener("keydown", onKey);
+        overlay.remove();
+        resolve(result);
+      }
+      function onKey(e) {
+        if (e.key === "Escape") close(opts.isPrompt ? null : false);
+        else if (e.key === "Enter" && opts.isPrompt) { e.preventDefault(); close(input.value); }
+      }
+      okBtn.addEventListener("click", function () { close(opts.isPrompt ? input.value : true); });
+      if (cancelBtn) cancelBtn.addEventListener("click", function () { close(opts.isPrompt ? null : false); });
+      overlay.addEventListener("mousedown", function (e) { if (e.target === overlay) close(opts.isPrompt ? null : false); });
+      document.addEventListener("keydown", onKey);
+      setTimeout(function () { (input || okBtn).focus(); if (input) input.select(); }, 0);
+    });
+  }
+  function itPrompt_(message, defaultValue) {
+    return itModal_({ message: message, isPrompt: true, defaultValue: defaultValue });
+  }
+  function itConfirm_(message, danger) {
+    return itModal_({ message: message, isPrompt: false, okText: danger ? "Удалить" : "Да", danger: !!danger });
+  }
+  function itAlert_(message) {
+    return itModal_({ message: message, isPrompt: false, showCancel: false, okText: "Понятно" });
+  }
   var SEND_URL = "https://script.google.com/a/macros/iteal.expert/s/AKfycbyvNwCQIvoEIHytg18mItMlTpVbOEaijGxsjjCZ7om4jU7EsKH4DZtmh--FFVmtQrQPcw/exec";
   var АДМИНЫ = [
     "anna.shchukancova@iteal.expert",
@@ -233,13 +322,13 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
 
   function wireVacRows_() {
     document.getElementById("vacBody").querySelectorAll('[data-act="del"]').forEach(function (btn) {
-      btn.addEventListener("click", function () {
+      btn.addEventListener("click", async function () {
         var tr = btn.closest("tr");
         var id = tr.dataset.id;
         var v = VACATIONS.filter(function (x) { return x.id === id; })[0];
-        if (!confirm('Удалить отпуск «' + (v ? v.employee : "") + '» из графика?')) return;
+        if (!await itConfirm_('Удалить отпуск «' + (v ? v.employee : "") + '» из графика?', true)) return;
         teamAction("vacationDelete", { id: id }, function (ok, resOrWhy) {
-          if (!ok) { alert("Не получилось: " + resOrWhy); return; }
+          if (!ok) { itAlert_("Не получилось: " + resOrWhy); return; }
           VACATIONS = VACATIONS.filter(function (x) { return x.id !== id; });
           renderVacations_();
         });
@@ -249,7 +338,7 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
 
   document.getElementById("vacAddBtn").addEventListener("click", function () {
     if (!ЭТО_АДМИН && !MY_NAME) {
-      alert("Ваша почта не найдена в «Команде» — попросите админа сначала добавить вас туда, тогда сможете вносить свой отпуск.");
+      itAlert_("Ваша почта не найдена в «Команде» — попросите админа сначала добавить вас туда, тогда сможете вносить свой отпуск.");
       return;
     }
     var body = document.getElementById("vacBody");
@@ -268,13 +357,13 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
       var start = row.querySelector(".v-start").value;
       var end = row.querySelector(".v-end").value;
       var comment = row.querySelector(".v-comment").value.trim();
-      if (!employee) { alert("Выберите сотрудника."); return; }
-      if (!start || !end) { alert("Укажите даты начала и окончания."); return; }
+      if (!employee) { itAlert_("Выберите сотрудника."); return; }
+      if (!start || !end) { itAlert_("Укажите даты начала и окончания."); return; }
       var btn = row.querySelector('[data-act="save"]');
       btn.disabled = true;
       var id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
       teamAction("vacationAdd", { id: id, employee: employee, start: start, end: end, comment: comment }, function (ok, resOrWhy) {
-        if (!ok) { alert("Не сохранилось: " + resOrWhy); btn.disabled = false; return; }
+        if (!ok) { itAlert_("Не сохранилось: " + resOrWhy); btn.disabled = false; return; }
         VACATIONS.push({ id: id, employee: employee, start: start, end: end, comment: comment, author: ТЕКУЩАЯ_ПОЧТА });
         renderVacations_();
       });

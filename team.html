@@ -87,6 +87,25 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
 @media (max-width:640px){
   h1{font-size:26px}
 }
+
+/* ===== Модалки вместо prompt()/confirm()/alert() ===== */
+.it-modal-overlay{position:fixed;inset:0;z-index:1000;background:rgba(28,38,34,.45);
+  display:flex;align-items:center;justify-content:center;padding:20px}
+.it-modal{width:100%;max-width:420px;background:var(--it-white);border-radius:16px;
+  padding:24px;box-shadow:0 20px 60px rgba(28,38,34,.28)}
+.it-modal-msg{font:400 14px/1.5 var(--font-body);color:var(--it-ink-soft);margin:0 0 16px;white-space:pre-line}
+.it-modal-input{display:block;width:100%;box-sizing:border-box;font:400 14px/1.5 var(--font-body);
+  color:var(--it-ink);background:var(--it-white);border:1px solid var(--it-line);
+  border-radius:10px;padding:10px 12px;margin-bottom:16px}
+.it-modal-input:focus{outline:none;border-color:var(--it-teal)}
+.it-modal-actions{display:flex;justify-content:flex-end;gap:10px}
+.it-modal-btn{font:600 14px var(--font-body);border-radius:8px;padding:9px 18px;
+  cursor:pointer;border:1px solid var(--it-teal);background:var(--it-white);color:var(--it-ink-soft)}
+.it-modal-btn:hover{background:var(--it-paper)}
+.it-modal-ok{background:var(--it-teal);border-color:var(--it-teal);color:#fff}
+.it-modal-ok:hover{background:var(--it-teal-deep)}
+.it-modal-ok.danger{background:#B4483C;border-color:#B4483C}
+.it-modal-ok.danger:hover{background:#93372C}
 </style>
 </head>
 <body>
@@ -141,6 +160,76 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
 <script>
 (function () {
   "use strict";
+
+  /* Стилизованные модалки вместо prompt()/confirm()/alert() — окно по центру
+     экрана в стиле сайта вместо браузерного диалога, прибитого к углу вкладки.
+     Все три — асинхронные (возвращают Promise). */
+  function itModal_(opts) {
+    return new Promise(function (resolve) {
+      var overlay = document.createElement("div");
+      overlay.className = "it-modal-overlay";
+      var box = document.createElement("div");
+      box.className = "it-modal";
+      box.setAttribute("role", "dialog");
+      box.setAttribute("aria-modal", "true");
+      if (opts.message) {
+        var msg = document.createElement("div");
+        msg.className = "it-modal-msg";
+        msg.textContent = opts.message;
+        box.appendChild(msg);
+      }
+      var input = null;
+      if (opts.isPrompt) {
+        input = document.createElement("input");
+        input.type = "text";
+        input.className = "it-modal-input";
+        input.value = opts.defaultValue || "";
+        box.appendChild(input);
+      }
+      var actions = document.createElement("div");
+      actions.className = "it-modal-actions";
+      var cancelBtn = null;
+      if (opts.showCancel !== false) {
+        cancelBtn = document.createElement("button");
+        cancelBtn.type = "button";
+        cancelBtn.className = "it-modal-btn";
+        cancelBtn.textContent = opts.cancelText || "Отмена";
+        actions.appendChild(cancelBtn);
+      }
+      var okBtn = document.createElement("button");
+      okBtn.type = "button";
+      okBtn.className = "it-modal-btn it-modal-ok" + (opts.danger ? " danger" : "");
+      okBtn.textContent = opts.okText || "ОК";
+      actions.appendChild(okBtn);
+      box.appendChild(actions);
+      overlay.appendChild(box);
+      document.body.appendChild(overlay);
+
+      function close(result) {
+        document.removeEventListener("keydown", onKey);
+        overlay.remove();
+        resolve(result);
+      }
+      function onKey(e) {
+        if (e.key === "Escape") close(opts.isPrompt ? null : false);
+        else if (e.key === "Enter" && opts.isPrompt) { e.preventDefault(); close(input.value); }
+      }
+      okBtn.addEventListener("click", function () { close(opts.isPrompt ? input.value : true); });
+      if (cancelBtn) cancelBtn.addEventListener("click", function () { close(opts.isPrompt ? null : false); });
+      overlay.addEventListener("mousedown", function (e) { if (e.target === overlay) close(opts.isPrompt ? null : false); });
+      document.addEventListener("keydown", onKey);
+      setTimeout(function () { (input || okBtn).focus(); if (input) input.select(); }, 0);
+    });
+  }
+  function itPrompt_(message, defaultValue) {
+    return itModal_({ message: message, isPrompt: true, defaultValue: defaultValue });
+  }
+  function itConfirm_(message, danger) {
+    return itModal_({ message: message, isPrompt: false, okText: danger ? "Удалить" : "Да", danger: !!danger });
+  }
+  function itAlert_(message) {
+    return itModal_({ message: message, isPrompt: false, showCancel: false, okText: "Понятно" });
+  }
   var SEND_URL = "https://script.google.com/a/macros/iteal.expert/s/AKfycbyvNwCQIvoEIHytg18mItMlTpVbOEaijGxsjjCZ7om4jU7EsKH4DZtmh--FFVmtQrQPcw/exec";
   var АДМИНЫ = [
     "anna.shchukancova@iteal.expert",
@@ -324,13 +413,13 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
       });
     });
     document.getElementById("teamBody").querySelectorAll('[data-act="del"]').forEach(function (btn) {
-      btn.addEventListener("click", function () {
+      btn.addEventListener("click", async function () {
         var tr = btn.closest("tr");
         var id = tr.dataset.id;
         var m = MEMBERS.filter(function (x) { return x.id === id; })[0];
-        if (!confirm('Удалить «' + (m ? m.name : "") + '» из команды?')) return;
+        if (!await itConfirm_('Удалить «' + (m ? m.name : "") + '» из команды?', true)) return;
         teamAction("teamDelete", { id: id }, function (ok, resOrWhy) {
-          if (!ok) { alert("Не получилось: " + resOrWhy); return; }
+          if (!ok) { itAlert_("Не получилось: " + resOrWhy); return; }
           MEMBERS = MEMBERS.filter(function (x) { return x.id !== id; });
           renderTeam_();
         });
@@ -351,7 +440,7 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
     });
     tr.querySelector('[data-act="save"]').addEventListener("click", function () {
       var data = gatherRow_(tr);
-      if (!data.name) { alert("Укажите имя и фамилию."); return; }
+      if (!data.name) { itAlert_("Укажите имя и фамилию."); return; }
       var btn = tr.querySelector('[data-act="save"]');
       btn.disabled = true;
       /* data.workMail — рабочая почта сотрудника; локальная модель (MEMBERS,
@@ -359,7 +448,7 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
          переносим явно, а не спредим data целиком под именем workMail. */
       if (existing) {
         teamAction("teamUpdate", Object.assign({ id: existing.id }, data), function (ok, resOrWhy) {
-          if (!ok) { alert("Не сохранилось: " + resOrWhy); btn.disabled = false; return; }
+          if (!ok) { itAlert_("Не сохранилось: " + resOrWhy); btn.disabled = false; return; }
           Object.assign(existing, data, { mail: data.workMail });
           var wrap = document.createElement("tbody");
           wrap.innerHTML = viewRowHtml_(existing);
@@ -369,7 +458,7 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
       } else {
         var id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
         teamAction("teamAdd", Object.assign({ id: id }, data), function (ok, resOrWhy) {
-          if (!ok) { alert("Не сохранилось: " + resOrWhy); btn.disabled = false; return; }
+          if (!ok) { itAlert_("Не сохранилось: " + resOrWhy); btn.disabled = false; return; }
           var m = Object.assign({ id: id }, data, { mail: data.workMail });
           MEMBERS.push(m);
           var wrap = document.createElement("tbody");
@@ -531,13 +620,13 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
       });
     });
     document.getElementById("contractorBody").querySelectorAll('[data-act="del"]').forEach(function (btn) {
-      btn.addEventListener("click", function () {
+      btn.addEventListener("click", async function () {
         var tr = btn.closest("tr");
         var id = tr.dataset.id;
         var m = CONTRACTORS.filter(function (x) { return x.id === id; })[0];
-        if (!confirm('Удалить «' + (m ? m.name : "") + '» из подрядчиков?')) return;
+        if (!await itConfirm_('Удалить «' + (m ? m.name : "") + '» из подрядчиков?', true)) return;
         teamAction("contractorDelete", { id: id }, function (ok, resOrWhy) {
-          if (!ok) { alert("Не получилось: " + resOrWhy); return; }
+          if (!ok) { itAlert_("Не получилось: " + resOrWhy); return; }
           CONTRACTORS = CONTRACTORS.filter(function (x) { return x.id !== id; });
           renderContractors_();
         });
@@ -558,12 +647,12 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
     });
     tr.querySelector('[data-act="save"]').addEventListener("click", function () {
       var data = contractorGatherRow_(tr);
-      if (!data.name) { alert("Укажите имя и фамилию."); return; }
+      if (!data.name) { itAlert_("Укажите имя и фамилию."); return; }
       var btn = tr.querySelector('[data-act="save"]');
       btn.disabled = true;
       if (existing) {
         teamAction("contractorUpdate", Object.assign({ id: existing.id }, data), function (ok, resOrWhy) {
-          if (!ok) { alert("Не сохранилось: " + resOrWhy); btn.disabled = false; return; }
+          if (!ok) { itAlert_("Не сохранилось: " + resOrWhy); btn.disabled = false; return; }
           Object.assign(existing, data, { mail: data.workMail });
           var wrap = document.createElement("tbody");
           wrap.innerHTML = contractorViewRowHtml_(existing);
@@ -573,7 +662,7 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
       } else {
         var id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
         teamAction("contractorAdd", Object.assign({ id: id }, data), function (ok, resOrWhy) {
-          if (!ok) { alert("Не сохранилось: " + resOrWhy); btn.disabled = false; return; }
+          if (!ok) { itAlert_("Не сохранилось: " + resOrWhy); btn.disabled = false; return; }
           var m = Object.assign({ id: id }, data, { mail: data.workMail });
           CONTRACTORS.push(m);
           var wrap = document.createElement("tbody");
