@@ -49,6 +49,14 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
 .status.err{color:#93372C}
 .status[hidden]{display:none}
 
+.typetabs{display:flex;gap:8px;margin-top:28px}
+.typetab{font:600 14px var(--font-heading);border:1px solid var(--it-line);background:var(--it-white);
+  color:var(--it-ink-soft);border-radius:999px;padding:9px 18px;cursor:pointer}
+.typetab:hover{border-color:var(--it-teal)}
+.typetab.on{background:var(--it-teal);border-color:var(--it-teal);color:#fff}
+.typepanel{display:none}
+.typepanel.on{display:block}
+
 .tablewrap[hidden]{display:none}
 .tablewrap{margin-top:24px;overflow-x:auto;background:var(--it-white);border:1px solid var(--it-line);border-radius:16px;
   padding:6px;box-shadow:var(--shadow-sm)}
@@ -63,10 +71,11 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
   border-radius:50%;color:var(--it-grey);cursor:pointer;font-size:13px;line-height:1;padding:0;margin-right:4px}
 .teamtable .iconbtn:hover{border-color:var(--it-teal);color:var(--it-teal-deep)}
 .teamtable .iconbtn.danger:hover{border-color:#B4483C;color:#93372C}
-.teamtable input,.teamtable select{width:100%;min-width:130px;font:400 14.5px var(--font-body);color:var(--it-ink);
+.teamtable input,.teamtable select,.teamtable textarea{width:100%;min-width:130px;font:400 14.5px var(--font-body);color:var(--it-ink);
   background:var(--it-paper);border:1px solid var(--it-line);border-radius:6px;padding:8px 10px;cursor:default}
 .teamtable select{cursor:pointer}
-.teamtable input:focus,.teamtable select:focus{outline:none;border-color:var(--it-teal)}
+.teamtable textarea{resize:vertical;font-family:inherit;line-height:1.4}
+.teamtable input:focus,.teamtable select:focus,.teamtable textarea:focus{outline:none;border-color:var(--it-teal)}
 .empty-hint{font-size:14px;color:var(--it-grey-light)}
 
 .btn{font:600 14px var(--font-body);border:1px solid var(--it-teal);background:var(--it-white);
@@ -92,16 +101,37 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
   <p class="lead">Все сотрудники iTeal — контакты, роли, дни рождения. Роль подтягивается автоматически из <a href="org-structure.html">оргструктуры</a>, как только человека назначают исполнителем какой-то роли. Добавлять и редактировать могут только админы.</p>
   <div class="rule"></div>
 
-  <p class="status" id="teamStatus">Загрузка…</p>
-  <div class="tablewrap" id="teamTableWrap" hidden>
-    <table class="teamtable">
-      <thead><tr id="teamHeadRow">
-        <th>Имя Фамилия</th><th>Роль</th><th>Телефон</th><th>Дата рождения</th>
-        <th>Город, страна</th><th>Рабочая почта</th><th>Instagram</th>
-      </tr></thead>
-      <tbody id="teamBody"></tbody>
-    </table>
-    <button type="button" class="btn" id="teamAddBtn" hidden>+ Добавить сотрудника</button>
+  <div class="typetabs" id="typeTabs">
+    <button type="button" class="typetab on" data-type="team">Команда</button>
+    <button type="button" class="typetab" data-type="contractors">Подрядчики</button>
+  </div>
+
+  <div class="typepanel on" id="panelTeam">
+    <p class="status" id="teamStatus">Загрузка…</p>
+    <div class="tablewrap" id="teamTableWrap" hidden>
+      <table class="teamtable">
+        <thead><tr id="teamHeadRow">
+          <th>Имя Фамилия</th><th>Роль</th><th>Телефон</th><th>Дата рождения</th>
+          <th>Город, страна</th><th>Рабочая почта</th><th>Instagram</th>
+        </tr></thead>
+        <tbody id="teamBody"></tbody>
+      </table>
+      <button type="button" class="btn" id="teamAddBtn" hidden>+ Добавить сотрудника</button>
+    </div>
+  </div>
+
+  <div class="typepanel" id="panelContractors">
+    <p class="status" id="contractorStatus">Загрузка…</p>
+    <div class="tablewrap" id="contractorTableWrap" hidden>
+      <table class="teamtable">
+        <thead><tr id="contractorHeadRow">
+          <th>Имя Фамилия</th><th>Роль</th><th>Телефон</th><th>Дата рождения</th>
+          <th>Город, страна</th><th>Рабочая почта</th><th>Instagram</th>
+        </tr></thead>
+        <tbody id="contractorBody"></tbody>
+      </table>
+      <button type="button" class="btn" id="contractorAddBtn" hidden>+ Добавить подрядчика</button>
+    </div>
   </div>
 </div>
 <button type="button" class="it-totop" id="toTop" aria-label="Наверх" title="Наверх">↑</button>
@@ -204,18 +234,33 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
     addBtn.hidden = !ЭТО_АДМИН;
   }
 
+  /* Несколько ролей/телефонов у одного человека — это разные строки
+     (перенос \n), а не одна строка через запятую: так их видно сразу,
+     не вчитываясь в сплошной текст. */
+  function linesHtml_(text) {
+    return String(text || "").split("\n").map(function (s) { return s.trim(); })
+      .filter(Boolean).map(эк).join("<br>");
+  }
+
+  function phoneLinesHtml_(text) {
+    return String(text || "").split("\n").map(function (s) { return s.trim(); })
+      .filter(Boolean).map(function (p) {
+        return '<a href="tel:' + эк(p.replace(/\s+/g, "")) + '">' + эк(p) + "</a>";
+      }).join("<br>");
+  }
+
   function viewRowHtml_(m) {
     var tg = socialLink_("https://t.me/", m.telegram);
     var ig = socialLink_("https://instagram.com/", m.instagram);
     var nameCell = tg ? '<a href="' + эк(tg) + '" target="_blank" rel="noopener">' + эк(m.name) + "</a>" : эк(m.name);
-    var phoneCell = m.phone ? '<a href="tel:' + эк(m.phone.replace(/\s+/g, "")) + '">' + эк(m.phone) + "</a>" : "";
+    var phoneCell = phoneLinesHtml_(m.phone);
     var mailCell = m.mail ? '<a href="mailto:' + эк(m.mail) + '">' + эк(m.mail) + "</a>" : "";
     var igCell = ig ? '<a href="' + эк(ig) + '" target="_blank" rel="noopener">' + эк(m.instagram) + "</a>" : "";
     var autoRoles = rolesForName_(m.name);
-    var roleText = autoRoles.length ? autoRoles.join(", ") : (m.role || "");
+    var roleHtml = autoRoles.length ? autoRoles.map(эк).join("<br>") : linesHtml_(m.role);
     return '<tr data-id="' + эк(m.id) + '">' +
       "<td>" + nameCell + "</td>" +
-      "<td>" + эк(roleText) + "</td>" +
+      "<td>" + roleHtml + "</td>" +
       "<td>" + phoneCell + "</td>" +
       "<td>" + эк(fmtDate_(m.birthday)) + "</td>" +
       "<td>" + эк(m.city) + "</td>" +
@@ -233,8 +278,8 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
     return '<tr class="editrow" data-id="' + эк(m.id) + '">' +
       '<td><input type="text" class="f-name" placeholder="Имя Фамилия" value="' + эк(m.name) + '">' +
       '<input type="text" class="f-tg" placeholder="Телеграм (@ник или ссылка)" value="' + эк(m.telegram) + '" style="margin-top:4px"></td>' +
-      '<td><input type="text" class="f-role" placeholder="Роль (если ещё нет в оргструктуре)" value="' + эк(m.role) + '"></td>' +
-      '<td><input type="text" class="f-phone" placeholder="+7…" value="' + эк(m.phone) + '"></td>' +
+      '<td><textarea class="f-role" rows="2" placeholder="Роль (если ещё нет в оргструктуре). Несколько — каждая с новой строки">' + эк(m.role) + "</textarea></td>" +
+      '<td><textarea class="f-phone" rows="2" placeholder="+7…. Несколько — каждый с новой строки">' + эк(m.phone) + "</textarea></td>" +
       '<td><input type="date" class="f-bday" value="' + эк(m.birthday || "") + '"></td>' +
       '<td><input type="text" class="f-city" placeholder="Город, страна" value="' + эк(m.city) + '"></td>' +
       '<td><input type="text" class="f-mail" placeholder="почта@iteal.expert" value="' + эк(m.mail) + '"></td>' +
@@ -369,6 +414,174 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
       document.getElementById("teamStatus").className = "status err";
     }, 15000);
   }
+
+  /* ------------------------------  Подрядчики  ------------------------------ */
+  /* Полная копия логики "Команды" на отдельном листе — своя переменная
+     состояния и свои элементы DOM, но без автоподстановки роли из
+     оргструктуры (подрядчики туда не назначаются). teamAction, gatherRow_,
+     эк/socialLink_/fmtDate_/linesHtml_/phoneLinesHtml_ переиспользуются
+     как есть — это общие хелперы, не завязанные на конкретную таблицу. */
+  var CONTRACTORS = [];
+  var CONTRACTORS_LOADED = false;
+
+  function renderContractors_() {
+    var head = document.getElementById("contractorHeadRow");
+    var extraTh = head.querySelector(".rowactions-h");
+    if (ЭТО_АДМИН && !extraTh) {
+      var th = document.createElement("th");
+      th.className = "rowactions-h";
+      head.appendChild(th);
+    }
+    document.getElementById("contractorBody").innerHTML = CONTRACTORS.map(contractorViewRowHtml_).join("");
+    wireContractorViewRows_();
+    var addBtn = document.getElementById("contractorAddBtn");
+    addBtn.hidden = !ЭТО_АДМИН;
+  }
+
+  function contractorViewRowHtml_(m) {
+    var tg = socialLink_("https://t.me/", m.telegram);
+    var ig = socialLink_("https://instagram.com/", m.instagram);
+    var nameCell = tg ? '<a href="' + эк(tg) + '" target="_blank" rel="noopener">' + эк(m.name) + "</a>" : эк(m.name);
+    var phoneCell = phoneLinesHtml_(m.phone);
+    var mailCell = m.mail ? '<a href="mailto:' + эк(m.mail) + '">' + эк(m.mail) + "</a>" : "";
+    var igCell = ig ? '<a href="' + эк(ig) + '" target="_blank" rel="noopener">' + эк(m.instagram) + "</a>" : "";
+    return '<tr data-id="' + эк(m.id) + '">' +
+      "<td>" + nameCell + "</td>" +
+      "<td>" + linesHtml_(m.role) + "</td>" +
+      "<td>" + phoneCell + "</td>" +
+      "<td>" + эк(fmtDate_(m.birthday)) + "</td>" +
+      "<td>" + эк(m.city) + "</td>" +
+      "<td>" + mailCell + "</td>" +
+      "<td>" + igCell + "</td>" +
+      (ЭТО_АДМИН
+        ? '<td class="rowactions"><button type="button" class="iconbtn" data-act="edit" title="Изменить">✎</button>' +
+          '<button type="button" class="iconbtn danger" data-act="del" title="Удалить">×</button></td>'
+        : "") +
+      "</tr>";
+  }
+
+  function contractorEditRowHtml_(m) {
+    m = m || { id: "", name: "", telegram: "", role: "", phone: "", birthday: "", city: "", mail: "", instagram: "" };
+    return '<tr class="editrow" data-id="' + эк(m.id) + '">' +
+      '<td><input type="text" class="f-name" placeholder="Имя Фамилия" value="' + эк(m.name) + '">' +
+      '<input type="text" class="f-tg" placeholder="Телеграм (@ник или ссылка)" value="' + эк(m.telegram) + '" style="margin-top:4px"></td>' +
+      '<td><textarea class="f-role" rows="2" placeholder="Специализация. Несколько — каждая с новой строки">' + эк(m.role) + "</textarea></td>" +
+      '<td><textarea class="f-phone" rows="2" placeholder="+7…. Несколько — каждый с новой строки">' + эк(m.phone) + "</textarea></td>" +
+      '<td><input type="date" class="f-bday" value="' + эк(m.birthday || "") + '"></td>' +
+      '<td><input type="text" class="f-city" placeholder="Город, страна" value="' + эк(m.city) + '"></td>' +
+      '<td><input type="text" class="f-mail" placeholder="почта" value="' + эк(m.mail) + '"></td>' +
+      '<td><input type="text" class="f-ig" placeholder="@ник или ссылка" value="' + эк(m.instagram) + '"></td>' +
+      '<td class="rowactions"><button type="button" class="iconbtn" data-act="save" title="Сохранить">✓</button>' +
+      '<button type="button" class="iconbtn danger" data-act="cancel" title="Отмена">×</button></td>' +
+      "</tr>";
+  }
+
+  function wireContractorViewRows_() {
+    if (!ЭТО_АДМИН) return;
+    document.getElementById("contractorBody").querySelectorAll('[data-act="edit"]').forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var tr = btn.closest("tr");
+        var id = tr.dataset.id;
+        var m = CONTRACTORS.filter(function (x) { return x.id === id; })[0];
+        var wrap = document.createElement("tbody");
+        wrap.innerHTML = contractorEditRowHtml_(m);
+        tr.replaceWith(wrap.firstChild);
+        wireContractorEditRow_(document.querySelector('#contractorBody tr[data-id="' + CSS.escape(id) + '"]'), m);
+      });
+    });
+    document.getElementById("contractorBody").querySelectorAll('[data-act="del"]').forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var tr = btn.closest("tr");
+        var id = tr.dataset.id;
+        var m = CONTRACTORS.filter(function (x) { return x.id === id; })[0];
+        if (!confirm('Удалить «' + (m ? m.name : "") + '» из подрядчиков?')) return;
+        teamAction("contractorDelete", { id: id }, function (ok, resOrWhy) {
+          if (!ok) { alert("Не получилось: " + resOrWhy); return; }
+          CONTRACTORS = CONTRACTORS.filter(function (x) { return x.id !== id; });
+          renderContractors_();
+        });
+      });
+    });
+  }
+
+  function wireContractorEditRow_(tr, existing) {
+    tr.querySelector('[data-act="cancel"]').addEventListener("click", function () {
+      if (existing) {
+        var wrap = document.createElement("tbody");
+        wrap.innerHTML = contractorViewRowHtml_(existing);
+        tr.replaceWith(wrap.firstChild);
+        wireContractorViewRows_();
+      } else {
+        tr.remove();
+      }
+    });
+    tr.querySelector('[data-act="save"]').addEventListener("click", function () {
+      var data = gatherRow_(tr);
+      if (!data.name) { alert("Укажите имя и фамилию."); return; }
+      var btn = tr.querySelector('[data-act="save"]');
+      btn.disabled = true;
+      if (existing) {
+        teamAction("contractorUpdate", Object.assign({ id: existing.id }, data), function (ok, resOrWhy) {
+          if (!ok) { alert("Не сохранилось: " + resOrWhy); btn.disabled = false; return; }
+          Object.assign(existing, data, { mail: data.workMail });
+          var wrap = document.createElement("tbody");
+          wrap.innerHTML = contractorViewRowHtml_(existing);
+          tr.replaceWith(wrap.firstChild);
+          wireContractorViewRows_();
+        });
+      } else {
+        var id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+        teamAction("contractorAdd", Object.assign({ id: id }, data), function (ok, resOrWhy) {
+          if (!ok) { alert("Не сохранилось: " + resOrWhy); btn.disabled = false; return; }
+          var m = Object.assign({ id: id }, data, { mail: data.workMail });
+          CONTRACTORS.push(m);
+          var wrap = document.createElement("tbody");
+          wrap.innerHTML = contractorViewRowHtml_(m);
+          tr.replaceWith(wrap.firstChild);
+          wireContractorViewRows_();
+        });
+      }
+    });
+  }
+
+  document.getElementById("contractorAddBtn").addEventListener("click", function () {
+    var body = document.getElementById("contractorBody");
+    var wrap = document.createElement("tbody");
+    wrap.innerHTML = contractorEditRowHtml_(null);
+    var row = wrap.firstChild;
+    body.appendChild(row);
+    wireContractorEditRow_(row, null);
+    row.querySelector(".f-name").focus();
+  });
+
+  function loadContractorsOnce_() {
+    if (CONTRACTORS_LOADED) return;
+    CONTRACTORS_LOADED = true;
+    jsonp({ action: "contractorList" }, function (res) {
+      if (!res || res.ok === false) {
+        document.getElementById("contractorStatus").textContent = "Не получилось загрузить подрядчиков: " + ((res && res.error) || "нет ответа") + ".";
+        document.getElementById("contractorStatus").className = "status err";
+        return;
+      }
+      CONTRACTORS = res.members || [];
+      document.getElementById("contractorStatus").hidden = true;
+      document.getElementById("contractorTableWrap").hidden = false;
+      renderContractors_();
+    }, function (why) {
+      document.getElementById("contractorStatus").textContent = "Нет связи с сервером: " + why + ".";
+      document.getElementById("contractorStatus").className = "status err";
+    }, 15000);
+  }
+
+  document.getElementById("typeTabs").querySelectorAll(".typetab").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var type = btn.dataset.type;
+      document.querySelectorAll(".typetab").forEach(function (b) { b.classList.toggle("on", b === btn); });
+      document.getElementById("panelTeam").classList.toggle("on", type === "team");
+      document.getElementById("panelContractors").classList.toggle("on", type === "contractors");
+      if (type === "contractors") loadContractorsOnce_();
+    });
+  });
 
   document.getElementById("toTop").addEventListener("click", function () {
     var rm = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
