@@ -775,25 +775,11 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     }).join("");
   }
 
-  /* Лидер круга — не свободный текст, а выбор одного из тех, кто уже указан
-     исполнителем какой-либо роли внутри этого круга (в т.ч. вложенных
-     подкругов). Пока у круга нет ни одной роли, список пуст — это нормально,
-     он заполнится по мере добавления ролей. */
-  function leaderCandidates_(circleId) {
-    var set = {};
-    (function walk(cid) {
-      (ALL_CHILDREN[cid] || []).forEach(function (kid) {
-        if (isLeaf_(kid)) {
-          (ALL_NODES[kid].assignees || []).forEach(function (v) {
-            v = String(v || "").trim();
-            if (v) set[v] = true;
-          });
-        } else {
-          walk(kid);
-        }
-      });
-    })(circleId);
-    return Object.keys(set).sort(function (a, b) { return a.localeCompare(b, "ru"); });
+  /* Лидером круга может быть любой сотрудник из "Команды" — не обязательно
+     тот, кто уже исполняет роль внутри этого круга (человек может
+     возглавлять круг, ещё не будучи назначенным ни на одну роль в нём). */
+  function leaderCandidates_() {
+    return TEAM_NAMES;
   }
 
   function leaderFieldHtml_(n, editing) {
@@ -801,7 +787,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     if (!editing) {
       return '<p class="assignees"><b>Лидер круга:</b> ' + (current ? эк(current) : "—") + "</p>";
     }
-    var candidates = leaderCandidates_(ID);
+    var candidates = leaderCandidates_();
     if (current && candidates.indexOf(current) === -1) candidates.push(current);
     var opts = '<option value="">— не выбран —</option>' + candidates.map(function (v) {
       return '<option value="' + эк(v) + '"' + (v === current ? " selected" : "") + ">" + эк(v) + "</option>";

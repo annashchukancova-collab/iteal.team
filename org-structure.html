@@ -381,7 +381,20 @@ ul.plain li::before{content:"— "}
 
   /* ------------------------------  загрузка  ----------------------------- */
 
+  /* Список имён из "Команды" — для выбора лидера круга (см. leaderCandidates_
+     ниже). Грузится параллельно с оргструктурой, не блокируя её показ. */
+  var TEAM_NAMES = [];
+  function loadTeamNames_() {
+    jsonp({ action: "teamList" }, function (res) {
+      TEAM_NAMES = ((res && res.ok !== false && res.members) || [])
+        .map(function (m) { return String(m.name || "").trim(); })
+        .filter(Boolean)
+        .sort(function (a, b) { return a.localeCompare(b, "ru"); });
+    }, function () { /* тихо — вспомогательные данные, не критично */ }, 12000);
+  }
+
   function load() {
+    loadTeamNames_();
     $("#status").textContent = "Загрузка…";
     $("#status").className = "status";
     $("#layout").hidden = true;
@@ -695,19 +708,10 @@ ul.plain li::before{content:"— "}
     saveCurrentNode(o, LIST_TITLES_[fieldKey] || fieldKey);
   }
 
-  /* Лидер круга — не свободный текст, а выбор из тех, кто уже указан
-     исполнителем какой-либо роли внутри этого круга (в т.ч. вложенных
-     подкругов). Так в поле не попадает человек, никак не связанный с кругом. */
-  function leaderCandidates_(circleId) {
-    var set = {};
-    descendantIds(circleId).forEach(function (cid) {
-      if (!isLeaf(cid)) return;
-      (NODES[cid].assignees || []).forEach(function (raw) {
-        var v = plainText_(raw).trim();
-        if (v) set[v] = true;
-      });
-    });
-    return Object.keys(set).sort(function (a, b) { return a.localeCompare(b, "ru"); });
+  /* Лидером круга может быть любой сотрудник из "Команды" — не обязательно
+     тот, кто уже исполняет роль внутри этого круга. */
+  function leaderCandidates_() {
+    return TEAM_NAMES;
   }
 
   function leaderSelectHtml_(circleId, n) {
@@ -715,13 +719,12 @@ ul.plain li::before{content:"— "}
     if (!ЭТО_АДМИН) {
       return '<p class="ph" style="font-size:14px">' + (current ? эк(current) : '<span style="opacity:.6">—</span>') + "</p>";
     }
-    var candidates = leaderCandidates_(circleId);
+    var candidates = leaderCandidates_();
     if (current && candidates.indexOf(current) === -1) candidates.push(current);
     var opts = '<option value="">— не выбран —</option>' + candidates.map(function (v) {
       return '<option value="' + эк(v) + '"' + (v === current ? " selected" : "") + ">" + эк(v) + "</option>";
     }).join("");
-    return '<select id="fLeader">' + opts + "</select>" +
-      '<div class="hint">Только те, кто уже исполняет роль внутри этого круга.</div>';
+    return '<select id="fLeader">' + opts + "</select>";
   }
 
   function moveOptionsHtml(excludeId) {

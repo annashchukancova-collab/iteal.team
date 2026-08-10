@@ -125,8 +125,10 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
     <div class="tablewrap" id="contractorTableWrap" hidden>
       <table class="teamtable">
         <thead><tr id="contractorHeadRow">
-          <th>Имя Фамилия</th><th>Роль</th><th>Телефон</th><th>Дата рождения</th>
-          <th>Город, страна</th><th>Рабочая почта</th><th>Instagram</th>
+          <th>Имена / названия</th><th>Специализация/Роль</th><th>Номер телефона</th><th>Рабочая почта</th>
+          <th>Друг подрядчика iTeal</th><th>Компания</th><th>Город</th><th>Час. пояс</th>
+          <th>Стоимость часа</th><th>Кол-во разработчиков</th><th>Кто порекомендовал</th>
+          <th>Участие в iTeal</th><th>Отзывы аналитиков</th><th>Доступ к серверам</th>
         </tr></thead>
         <tbody id="contractorBody"></tbody>
       </table>
@@ -228,7 +230,8 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
       th.className = "rowactions-h";
       head.appendChild(th);
     }
-    document.getElementById("teamBody").innerHTML = MEMBERS.map(viewRowHtml_).join("");
+    var sortedMembers = MEMBERS.slice().sort(function (a, b) { return String(a.name || "").localeCompare(String(b.name || ""), "ru"); });
+    document.getElementById("teamBody").innerHTML = sortedMembers.map(viewRowHtml_).join("");
     wireViewRows_();
     var addBtn = document.getElementById("teamAddBtn");
     addBtn.hidden = !ЭТО_АДМИН;
@@ -432,7 +435,8 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
       th.className = "rowactions-h";
       head.appendChild(th);
     }
-    document.getElementById("contractorBody").innerHTML = CONTRACTORS.map(contractorViewRowHtml_).join("");
+    var sortedContractors = CONTRACTORS.slice().sort(function (a, b) { return String(a.name || "").localeCompare(String(b.name || ""), "ru"); });
+    document.getElementById("contractorBody").innerHTML = sortedContractors.map(contractorViewRowHtml_).join("");
     wireContractorViewRows_();
     var addBtn = document.getElementById("contractorAddBtn");
     addBtn.hidden = !ЭТО_АДМИН;
@@ -440,19 +444,24 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
 
   function contractorViewRowHtml_(m) {
     var tg = socialLink_("https://t.me/", m.telegram);
-    var ig = socialLink_("https://instagram.com/", m.instagram);
     var nameCell = tg ? '<a href="' + эк(tg) + '" target="_blank" rel="noopener">' + эк(m.name) + "</a>" : эк(m.name);
     var phoneCell = phoneLinesHtml_(m.phone);
     var mailCell = m.mail ? '<a href="mailto:' + эк(m.mail) + '">' + эк(m.mail) + "</a>" : "";
-    var igCell = ig ? '<a href="' + эк(ig) + '" target="_blank" rel="noopener">' + эк(m.instagram) + "</a>" : "";
     return '<tr data-id="' + эк(m.id) + '">' +
       "<td>" + nameCell + "</td>" +
       "<td>" + linesHtml_(m.role) + "</td>" +
       "<td>" + phoneCell + "</td>" +
-      "<td>" + эк(fmtDate_(m.birthday)) + "</td>" +
-      "<td>" + эк(m.city) + "</td>" +
       "<td>" + mailCell + "</td>" +
-      "<td>" + igCell + "</td>" +
+      "<td>" + эк(m.buddy) + "</td>" +
+      "<td>" + эк(m.company) + "</td>" +
+      "<td>" + эк(m.city) + "</td>" +
+      "<td>" + эк(m.timezone) + "</td>" +
+      "<td>" + эк(m.rate) + "</td>" +
+      "<td>" + эк(m.devCount) + "</td>" +
+      "<td>" + эк(m.referredBy) + "</td>" +
+      "<td>" + эк(m.participation) + "</td>" +
+      "<td>" + эк(m.reviews) + "</td>" +
+      "<td>" + эк(m.serverAccess) + "</td>" +
       (ЭТО_АДМИН
         ? '<td class="rowactions"><button type="button" class="iconbtn" data-act="edit" title="Изменить">✎</button>' +
           '<button type="button" class="iconbtn danger" data-act="del" title="Удалить">×</button></td>'
@@ -461,19 +470,51 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
   }
 
   function contractorEditRowHtml_(m) {
-    m = m || { id: "", name: "", telegram: "", role: "", phone: "", birthday: "", city: "", mail: "", instagram: "" };
+    m = m || { id: "", name: "", telegram: "", role: "", phone: "", mail: "", buddy: "", company: "",
+      city: "", timezone: "", rate: "", devCount: "", referredBy: "", participation: "", reviews: "", serverAccess: "" };
     return '<tr class="editrow" data-id="' + эк(m.id) + '">' +
       '<td><input type="text" class="f-name" placeholder="Имя Фамилия" value="' + эк(m.name) + '">' +
       '<input type="text" class="f-tg" placeholder="Телеграм (@ник или ссылка)" value="' + эк(m.telegram) + '" style="margin-top:4px"></td>' +
       '<td><textarea class="f-role" rows="2" placeholder="Специализация. Несколько — каждая с новой строки">' + эк(m.role) + "</textarea></td>" +
       '<td><textarea class="f-phone" rows="2" placeholder="+7…. Несколько — каждый с новой строки">' + эк(m.phone) + "</textarea></td>" +
-      '<td><input type="date" class="f-bday" value="' + эк(m.birthday || "") + '"></td>' +
-      '<td><input type="text" class="f-city" placeholder="Город, страна" value="' + эк(m.city) + '"></td>' +
       '<td><input type="text" class="f-mail" placeholder="почта" value="' + эк(m.mail) + '"></td>' +
-      '<td><input type="text" class="f-ig" placeholder="@ник или ссылка" value="' + эк(m.instagram) + '"></td>' +
+      '<td><input type="text" class="f-buddy" placeholder="Кто из iTeal курирует" value="' + эк(m.buddy) + '"></td>' +
+      '<td><input type="text" class="f-company" placeholder="Компания/фрилансер" value="' + эк(m.company) + '"></td>' +
+      '<td><input type="text" class="f-city" placeholder="Город" value="' + эк(m.city) + '"></td>' +
+      '<td><input type="text" class="f-timezone" placeholder="Часовой пояс" value="' + эк(m.timezone) + '"></td>' +
+      '<td><input type="text" class="f-rate" placeholder="Ставка/час" value="' + эк(m.rate) + '"></td>' +
+      '<td><input type="text" class="f-devcount" placeholder="Кол-во" value="' + эк(m.devCount) + '"></td>' +
+      '<td><input type="text" class="f-referredby" placeholder="Кто порекомендовал" value="' + эк(m.referredBy) + '"></td>' +
+      '<td><input type="text" class="f-participation" placeholder="Участие в iTeal" value="' + эк(m.participation) + '"></td>' +
+      '<td><input type="text" class="f-reviews" placeholder="Отзывы аналитиков" value="' + эк(m.reviews) + '"></td>' +
+      '<td><input type="text" class="f-serveraccess" placeholder="Доступ к серверам" value="' + эк(m.serverAccess) + '"></td>' +
       '<td class="rowactions"><button type="button" class="iconbtn" data-act="save" title="Сохранить">✓</button>' +
       '<button type="button" class="iconbtn danger" data-act="cancel" title="Отмена">×</button></td>' +
       "</tr>";
+  }
+
+  /* Свой сборщик формы — поля подрядчика не совпадают с полями "Команды"
+     (gatherRow_ здесь не подходит). workMail — та же логика, что и везде:
+     "mail" в payload teamAction подставляет сама (почта админа), поэтому
+     рабочая почта самого подрядчика — отдельное поле. */
+  function contractorGatherRow_(tr) {
+    return {
+      name: tr.querySelector(".f-name").value.trim(),
+      telegram: tr.querySelector(".f-tg").value.trim(),
+      role: tr.querySelector(".f-role").value.trim(),
+      phone: tr.querySelector(".f-phone").value.trim(),
+      workMail: tr.querySelector(".f-mail").value.trim(),
+      buddy: tr.querySelector(".f-buddy").value.trim(),
+      company: tr.querySelector(".f-company").value.trim(),
+      city: tr.querySelector(".f-city").value.trim(),
+      timezone: tr.querySelector(".f-timezone").value.trim(),
+      rate: tr.querySelector(".f-rate").value.trim(),
+      devCount: tr.querySelector(".f-devcount").value.trim(),
+      referredBy: tr.querySelector(".f-referredby").value.trim(),
+      participation: tr.querySelector(".f-participation").value.trim(),
+      reviews: tr.querySelector(".f-reviews").value.trim(),
+      serverAccess: tr.querySelector(".f-serveraccess").value.trim()
+    };
   }
 
   function wireContractorViewRows_() {
@@ -516,7 +557,7 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
       }
     });
     tr.querySelector('[data-act="save"]').addEventListener("click", function () {
-      var data = gatherRow_(tr);
+      var data = contractorGatherRow_(tr);
       if (!data.name) { alert("Укажите имя и фамилию."); return; }
       var btn = tr.querySelector('[data-act="save"]');
       btn.disabled = true;
