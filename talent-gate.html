@@ -170,6 +170,14 @@ h1{font:700 30px/1.2 var(--font-heading);color:var(--it-teal-deep);margin:16px 0
 
   function onCredential_(resp) {
     showResult('<span class="spinner"></span>Проверяю вход…');
+    // ВРЕМЕННАЯ отладка nonce — убрать после того, как разберёмся,
+    // почему Supabase ругается на несовпадение nonce.
+    try {
+      var частиТокена = resp.credential.split(".");
+      var полезнаяНагрузка = JSON.parse(atob(частиТокена[1].replace(/-/g, "+").replace(/_/g, "/")));
+      console.log("[отладка nonce] nonce внутри токена Google:", полезнаяНагрузка.nonce);
+      console.log("[отладка nonce] сырой nonce, отправляемый в Supabase:", НОНС_СЫРОЙ);
+    } catch (e) { console.log("[отладка nonce] не удалось разобрать токен:", e); }
     // Сессия для страниц на Supabase — не блокирует и не задерживает
     // основной вход ниже; если сама Supabase недоступна, старый вход всё
     // равно должен пройти как раньше.
