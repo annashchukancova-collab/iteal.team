@@ -108,11 +108,10 @@ h1{font:700 32px/1.15 var(--font-heading);color:var(--it-teal-deep);margin:16px 
 
   <div class="hublayout">
     <nav class="hubnav" id="hubNav">
-      <a href="#" data-group="structure" class="active">Структура iTeal</a>
+      <a href="#" data-group="structure" class="active">Команда iTeal</a>
       <a href="#" data-group="policies">Политики</a>
       <a href="#" data-group="routemaps">Маршрутные карты</a>
       <a href="#" data-group="meetings">Встречи</a>
-      <a href="#" data-group="team">Команда</a>
     </nav>
     <div class="hubpanel">
       <div class="hubgroup on" data-group="structure">
@@ -120,30 +119,7 @@ h1{font:700 32px/1.15 var(--font-heading);color:var(--it-teal-deep);margin:16px 
           <span class="nm">Структура iTeal</span>
           <span class="ds">Круги и роли компании — холакратическая структура iTeal.</span>
         </a>
-      </div>
-      <div class="hubgroup" data-group="policies">
-        <a class="choice" href="hiring-path.html">
-          <span class="nm">Технология отбора</span>
-          <span class="ds">Как устроен путь кандидата от отклика до оффера.</span>
-        </a>
-        <a class="choice" href="talent-path.html">
-          <span class="nm">Технология адаптации</span>
-          <span class="ds">Маршрут первых недель нового таланта в iTeal.</span>
-        </a>
-      </div>
-      <div class="hubgroup" data-group="routemaps">
-        <a class="choice" href="route-maps.html">
-          <span class="nm">Маршрутные карты</span>
-          <span class="ds">Личные карты адаптации.</span>
-        </a>
-      </div>
-      <div class="hubgroup" data-group="meetings">
-        <a class="choice" href="meeting-notes.html">
-          <span class="nm">Встречи</span>
-          <span class="ds">Тактические, законодательные встречи и ретроспективы — по вкладкам.</span>
-        </a>
-      </div>
-      <div class="hubgroup" data-group="team">
+
         <p class="status" id="teamStatus">Загрузка…</p>
         <div class="tablewrap" id="teamTableWrap" hidden>
           <table class="teamtable">
@@ -167,6 +143,28 @@ h1{font:700 32px/1.15 var(--font-heading);color:var(--it-teal-deep);margin:16px 
           <button type="button" class="btn" id="vacAddBtn" hidden>+ Добавить отпуск</button>
         </div>
       </div>
+      <div class="hubgroup" data-group="policies">
+        <a class="choice" href="hiring-path.html">
+          <span class="nm">Технология отбора</span>
+          <span class="ds">Как устроен путь кандидата от отклика до оффера.</span>
+        </a>
+        <a class="choice" href="talent-path.html">
+          <span class="nm">Технология адаптации</span>
+          <span class="ds">Маршрут первых недель нового таланта в iTeal.</span>
+        </a>
+      </div>
+      <div class="hubgroup" data-group="routemaps">
+        <a class="choice" href="route-maps.html">
+          <span class="nm">Маршрутные карты</span>
+          <span class="ds">Личные карты адаптации.</span>
+        </a>
+      </div>
+      <div class="hubgroup" data-group="meetings">
+        <a class="choice" href="meeting-notes.html">
+          <span class="nm">Встречи</span>
+          <span class="ds">Тактические, законодательные встречи и ретроспективы — по вкладкам.</span>
+        </a>
+      </div>
     </div>
   </div>
 
@@ -184,7 +182,7 @@ document.getElementById("hubNav").querySelectorAll("a").forEach(function (a) {
     var key = a.dataset.group;
     document.querySelectorAll("#hubNav a").forEach(function (b) { b.classList.toggle("active", b === a); });
     document.querySelectorAll(".hubgroup").forEach(function (g) { g.classList.toggle("on", g.dataset.group === key); });
-    if (key === "team") loadTeamOnce_();
+    if (key === "structure") loadTeamOnce_();
   });
 });
 
@@ -556,6 +554,8 @@ document.getElementById("hubNav").querySelectorAll("a").forEach(function (a) {
     var employeeSel = row.querySelector(".v-employee");
     if (employeeSel) employeeSel.focus(); else row.querySelector(".v-start").focus();
   });
+
+  loadTeamOnce_();
 })();
 </script>
 </body>
