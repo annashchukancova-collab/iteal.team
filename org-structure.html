@@ -27,7 +27,7 @@ a{color:var(--it-teal)}
 :focus-visible{outline:2px solid var(--it-teal);outline-offset:2px}
 
 .it-header{position:sticky;top:0;z-index:10;background:var(--it-white);padding:16px 0;
-  margin:0 auto 24px;max-width:1200px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  margin:0 0 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 .logo{height:60px;width:auto;margin:0}
 .it-nav{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
 .it-nav a{display:inline-flex;align-items:center;padding:10px 16px;border-radius:999px;
@@ -55,7 +55,7 @@ h1{font:700 32px/1.15 var(--font-heading);color:var(--it-teal-deep);margin:16px 
 .layout[hidden]{display:none}
 .stage{flex:1 1 560px;min-width:280px;background:var(--it-white);border:1px solid var(--it-line);
   border-radius:16px;box-shadow:var(--shadow-sm);padding:12px}
-.stage svg{display:block;width:100%;height:auto}
+.stage svg{display:block;width:100%;height:auto;max-height:max(360px, calc(100vh - 350px))}
 .node-circle{cursor:pointer}
 .node-circle.root{fill:rgba(44,87,72,.03);stroke:var(--it-teal-deep);stroke-width:2.5}
 .node-circle.container{fill:rgba(67,131,109,.08);stroke:var(--it-teal);stroke-width:1.5}
