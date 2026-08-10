@@ -230,6 +230,9 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:40px;line-height:1.
 .pencilmenu button:hover{background:var(--it-paper)}
 .pencilmenu button[data-action="delete"]{color:#93372C}
 .pencilmenu button[data-action="delete"]:hover{background:#FDF7F6}
+.pencilmenu select{font:500 14px var(--font-body);color:var(--it-ink-soft);background:none;border:none;
+  text-align:left;padding:8px 10px;border-radius:6px;cursor:pointer;width:100%;max-width:220px}
+.pencilmenu select:hover{background:var(--it-paper)}
 .btn{font:600 14px var(--font-body);border:1px solid var(--it-teal);background:var(--it-white);
   color:var(--it-teal);border-radius:var(--radius-sm);padding:10px 18px;cursor:pointer}
 .btn:hover{background:rgba(122,193,168,.1)}
@@ -597,6 +600,9 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
         ? '<div class="pencilwrap"><button type="button" class="pencil-btn" id="editToggle" title="Действия" aria-label="Действия">✎</button>' +
           '<div class="pencilmenu" id="pencilMenu">' +
           '<button type="button" data-action="edit">Редактировать</button>' +
+          (ID !== "root"
+            ? '<select id="moveSelect" data-action="move"><option value="">Переместить в…</option>' + moveOptionsHtml_() + "</select>"
+            : "") +
           '<button type="button" data-action="delete">Удалить</button>' +
           "</div></div>"
         : "") +
@@ -676,6 +682,20 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       menu.classList.remove("show");
       EDITING = true;
       buildCard_(CURRENT);
+    });
+    var moveSelect = menu.querySelector('[data-action="move"]');
+    if (moveSelect) moveSelect.addEventListener("change", function () {
+      var target = moveSelect.value;
+      if (!target) return;
+      var targetName = ALL_NODES[target] ? ALL_NODES[target].name : target;
+      if (!confirm('Переместить «' + CURRENT.name + '» в «' + targetName + '»?')) {
+        moveSelect.value = ""; return;
+      }
+      orgAction("orgReparent", { id: ID, parent: target }, function (ok, resOrWhy) {
+        if (!ok) { alert("Не получилось: " + resOrWhy); moveSelect.value = ""; return; }
+        menu.classList.remove("show");
+        load();
+      });
     });
     menu.querySelector('[data-action="delete"]').addEventListener("click", function () {
       menu.classList.remove("show");
@@ -1172,6 +1192,22 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
   }
 
   function isLeaf_(id) { return (ALL_CHILDREN[id] || []).length === 0; }
+
+  function descendantIds_(id) {
+    var out = [];
+    (ALL_CHILDREN[id] || []).forEach(function (cid) { out.push(cid); out = out.concat(descendantIds_(cid)); });
+    return out;
+  }
+
+  /* Список для "Переместить в…" — все узлы, кроме себя и собственных
+     потомков (иначе можно перенести круг сам в себя и порвать дерево). */
+  function moveOptionsHtml_() {
+    var exclude = {}; exclude[ID] = true;
+    descendantIds_(ID).forEach(function (cid) { exclude[cid] = true; });
+    return Object.keys(ALL_NODES).filter(function (id) { return !exclude[id]; }).map(function (id) {
+      return '<option value="' + эк(id) + '">' + эк(ALL_NODES[id].name) + '</option>';
+    }).join("");
+  }
 
   function toHierarchy_(id) {
     var n = ALL_NODES[id];
