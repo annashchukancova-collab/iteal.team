@@ -600,6 +600,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
         ? '<div class="pencilwrap"><button type="button" class="pencil-btn" id="editToggle" title="Действия" aria-label="Действия">✎</button>' +
           '<div class="pencilmenu" id="pencilMenu">' +
           '<button type="button" data-action="edit">Редактировать</button>' +
+          (isCircle ? '<button type="button" data-action="addrole">+ Роль</button>' : "") +
           (ID !== "root"
             ? '<select id="moveSelect" data-action="move"><option value="">Переместить в…</option>' + moveOptionsHtml_() + "</select>"
             : "") +
@@ -682,6 +683,23 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       menu.classList.remove("show");
       EDITING = true;
       buildCard_(CURRENT);
+    });
+    var addRoleBtn = menu.querySelector('[data-action="addrole"]');
+    if (addRoleBtn) addRoleBtn.addEventListener("click", function () {
+      menu.classList.remove("show");
+      var name = prompt("Название новой роли:");
+      name = (name || "").trim();
+      if (!name) return;
+      /* Префикс "r-" — тот же приём, что и в org-structure.html: тип узла
+         обычно вычисляется по наличию детей, а у свежесозданной роли их
+         пока (и никогда, по смыслу) нет, поэтому явный префикс в ID нужен,
+         чтобы role.html точно знал, что перед ним роль, а не пустой круг. */
+      var id = "r-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+      orgAction("orgAddNode", { id: id, parent: ID, name: name }, function (ok, resOrWhy) {
+        if (!ok) { alert("Не получилось: " + resOrWhy); return; }
+        window.open("role.html?id=" + encodeURIComponent(id), "_blank");
+        load();
+      });
     });
     var moveSelect = menu.querySelector('[data-action="move"]');
     if (moveSelect) moveSelect.addEventListener("change", function () {
