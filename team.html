@@ -89,7 +89,7 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
 
   <p class="kicker">iTeal</p>
   <h1>Команда</h1>
-  <p class="lead">Все сотрудники iTeal — контакты, роли, дни рождения. Добавлять и редактировать могут только админы.</p>
+  <p class="lead">Все сотрудники iTeal — контакты, роли, дни рождения. Роль подтягивается автоматически из <a href="org-structure.html">оргструктуры</a>, как только человека назначают исполнителем какой-то роли. Добавлять и редактировать могут только админы.</p>
   <div class="rule"></div>
 
   <p class="status" id="teamStatus">Загрузка…</p>
@@ -121,6 +121,23 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
   })();
   var ЭТО_АДМИН = АДМИНЫ.indexOf(ТЕКУЩАЯ_ПОЧТА) !== -1;
   var MEMBERS = [];
+  var ORG_NODES = [];
+
+  /* Роль сотрудника теперь не нужно вписывать вручную — она вычисляется
+     по факту назначения человека исполнителем в оргструктуре (совпадение
+     по имени, точно так же, как в cabinet.html). Если человек нигде не
+     назначен исполнителем, показываем то, что раньше было вписано в
+     колонку "Роль" таблицы "Команда" вручную (поле осталось как запасной
+     вариант, а не удалено). */
+  function rolesForName_(name) {
+    var target = String(name || "").trim().toLowerCase();
+    if (!target) return [];
+    return ORG_NODES.filter(function (n) {
+      return n.id !== "root" && (n.assignees || []).some(function (a) {
+        return String(a || "").trim().toLowerCase() === target;
+      });
+    }).map(function (n) { return n.name; });
+  }
 
   function эк(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
@@ -194,9 +211,11 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
     var phoneCell = m.phone ? '<a href="tel:' + эк(m.phone.replace(/\s+/g, "")) + '">' + эк(m.phone) + "</a>" : "";
     var mailCell = m.mail ? '<a href="mailto:' + эк(m.mail) + '">' + эк(m.mail) + "</a>" : "";
     var igCell = ig ? '<a href="' + эк(ig) + '" target="_blank" rel="noopener">' + эк(m.instagram) + "</a>" : "";
+    var autoRoles = rolesForName_(m.name);
+    var roleText = autoRoles.length ? autoRoles.join(", ") : (m.role || "");
     return '<tr data-id="' + эк(m.id) + '">' +
       "<td>" + nameCell + "</td>" +
-      "<td>" + эк(m.role) + "</td>" +
+      "<td>" + эк(roleText) + "</td>" +
       "<td>" + phoneCell + "</td>" +
       "<td>" + эк(fmtDate_(m.birthday)) + "</td>" +
       "<td>" + эк(m.city) + "</td>" +
@@ -214,7 +233,7 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
     return '<tr class="editrow" data-id="' + эк(m.id) + '">' +
       '<td><input type="text" class="f-name" placeholder="Имя Фамилия" value="' + эк(m.name) + '">' +
       '<input type="text" class="f-tg" placeholder="Телеграм (@ник или ссылка)" value="' + эк(m.telegram) + '" style="margin-top:4px"></td>' +
-      '<td><input type="text" class="f-role" placeholder="Роль" value="' + эк(m.role) + '"></td>' +
+      '<td><input type="text" class="f-role" placeholder="Роль (если ещё нет в оргструктуре)" value="' + эк(m.role) + '"></td>' +
       '<td><input type="text" class="f-phone" placeholder="+7…" value="' + эк(m.phone) + '"></td>' +
       '<td><input type="date" class="f-bday" value="' + эк(m.birthday || "") + '"></td>' +
       '<td><input type="text" class="f-city" placeholder="Город, страна" value="' + эк(m.city) + '"></td>' +
@@ -332,9 +351,19 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
         return;
       }
       MEMBERS = res.members || [];
-      document.getElementById("teamStatus").hidden = true;
-      document.getElementById("teamTableWrap").hidden = false;
-      renderTeam_();
+      jsonp({ action: "orgList" }, function (orgRes) {
+        ORG_NODES = (orgRes && orgRes.nodes) || [];
+        document.getElementById("teamStatus").hidden = true;
+        document.getElementById("teamTableWrap").hidden = false;
+        renderTeam_();
+      }, function () {
+        /* Оргструктура не загрузилась — показываем команду всё равно,
+           просто без автоподстановки ролей (останется запасной вариант
+           из поля "Роль"). */
+        document.getElementById("teamStatus").hidden = true;
+        document.getElementById("teamTableWrap").hidden = false;
+        renderTeam_();
+      }, 15000);
     }, function (why) {
       document.getElementById("teamStatus").textContent = "Нет связи с сервером: " + why + ".";
       document.getElementById("teamStatus").className = "status err";
