@@ -66,7 +66,7 @@ h1{font:700 32px/1.15 var(--font-heading);color:var(--it-teal-deep);margin:16px 
   text-anchor:middle;pointer-events:none;user-select:none}
 .node-label.on-fill{fill:#fff}
 .node-label.container{fill:var(--it-teal-deep)}
-.node-label-bg{fill:var(--it-white);fill-opacity:.9;stroke:var(--it-line);stroke-width:1;cursor:pointer}
+.node-label-bg{fill:#E3F4EE;fill-opacity:.96;stroke:var(--it-mint);stroke-width:1;cursor:pointer}
 
 .panel{flex:0 0 340px;min-width:280px;background:var(--it-white);border:1px solid var(--it-line);
   border-radius:16px;box-shadow:var(--shadow-sm);padding:22px;max-height:80vh;overflow:auto}
@@ -574,15 +574,16 @@ ul.plain li::before{content:"— "}
 
       var showLabel = leaf ? d.r >= 16 : d.r >= 26;
       if (!showLabel) return;
-      var isRoot = d.depth === 0;
       var layout = layoutLabel_(d.data.name, d.r, leaf);
       if (!layout.lines.length) return;
       var cls = "node-label" + (filled ? " on-fill" : "") + (!leaf ? " container" : "");
       var lineHeight = layout.fontSize * 1.15;
-      // iTeal (корень) — подпись сверху, как и была. Все остальные круги,
-      // включая обычные круги-контейнеры (не только роли), — по центру:
-      // у самого верха название норовит спрятаться под дочерними кругами.
-      var centered = !isRoot;
+      // По центру — только у ролей (листьев), у них там больше не с кем
+      // столкнуться. У кругов-контейнеров дети часто пакуются как раз
+      // ближе к центру — если и подпись круга поставить туда же, она
+      // ляжет прямо на дочерние круги и их подписи (было видно на
+      // скриншоте). Поэтому у контейнеров, как и у iTeal, название — сверху.
+      var centered = leaf;
       var startY = centered ? d.y - (layout.lines.length - 1) * lineHeight / 2 : d.y - d.r + layout.fontSize + 2;
 
       var labelGroup = document.createElementNS(ns, "g");
