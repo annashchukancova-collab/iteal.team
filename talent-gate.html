@@ -6,6 +6,7 @@
 <title>Для талантов — iTeal</title>
 <link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;500;700&family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
 :root{
   --it-teal:#43836D; --it-teal-deep:#2C5748; --it-mint:#7AC1A8;
@@ -85,6 +86,21 @@ h1{font:700 30px/1.2 var(--font-heading);color:var(--it-teal-deep);margin:16px 0
 
   var CLIENT_ID = "133153505092-5a7botcfrpenjsfaqto20hp1fbcjg10d.apps.googleusercontent.com";
   var SEND_URL = "https://script.google.com/a/macros/iteal.expert/s/AKfycbyvNwCQIvoEIHytg18mItMlTpVbOEaijGxsjjCZ7om4jU7EsKH4DZtmh--FFVmtQrQPcw/exec";
+
+  // Вторая, независимая сессия — для страниц, уже переехавших на Supabase
+  // (см. миграцию с Apps Script). Заводится из того же Google-токена, что
+  // и старый вход выше, но не подменяет и не трогает его: страницы, ещё не
+  // переехавшие, эту сессию не читают и продолжают работать как раньше.
+  var SUPABASE_URL = "https://evqvzapbbtnfidvnhgxe.supabase.co";
+  var SUPABASE_ANON_KEY = "sb_publishable_3ACYfKH82rtlVdt1olMHIA_GvP5KjYi";
+  var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // Google требует, чтобы ID-токен содержал nonce, иначе Supabase не
+  // примет его в signInWithIdToken (без nonce токен теоретически можно
+  // переиспользовать повторно — Google/Supabase этого не позволяют).
+  // "Сырой" nonce уходит в Supabase, его SHA-256-хэш — в сам GIS-запрос;
+  // так проверяется, что это тот же самый вход, а не подставленный токен.
+  var НОНС_СЫРОЙ = null;
   // Куда попадает сотрудник, если он не пришёл по прямой ссылке на
   // конкретный материал (см. ВОЗВРАТ ниже) — страница выбора, куда идти
   // дальше (материалы, маршрутные карты и т.д.).
@@ -154,6 +170,14 @@ h1{font:700 30px/1.2 var(--font-heading);color:var(--it-teal-deep);margin:16px 0
 
   function onCredential_(resp) {
     showResult('<span class="spinner"></span>Проверяю вход…');
+    // Сессия для страниц на Supabase — не блокирует и не задерживает
+    // основной вход ниже; если сама Supabase недоступна, старый вход всё
+    // равно должен пройти как раньше.
+    try {
+      sb.auth.signInWithIdToken({ provider: "google", token: resp.credential, options: { nonce: НОНС_СЫРОЙ } })
+        .catch(function (e) { console.warn("Supabase-вход не удался:", e); });
+    } catch (e) { console.warn("Supabase-вход не удался:", e); }
+
     jsonp({ action: "authVerify", payload: JSON.stringify({ idToken: resp.credential }) }, function (res) {
       if (!res || res.ok === false) {
         showResult('<p class="big">Не получилось войти</p><p>' + эк((res && res.error) || "неизвестная ошибка") + "</p>", "err");
@@ -170,12 +194,27 @@ h1{font:700 30px/1.2 var(--font-heading);color:var(--it-teal-deep);margin:16px 0
     }, 15000);
   }
 
-  function initGoogle_() {
-    if (!window.google || !google.accounts || !google.accounts.id) { setTimeout(initGoogle_, 150); return; }
-    google.accounts.id.initialize({ client_id: CLIENT_ID, callback: onCredential_ });
+  function отрисоватьКнопку_(nonce) {
+    google.accounts.id.initialize(nonce
+      ? { client_id: CLIENT_ID, callback: onCredential_, nonce: nonce }
+      : { client_id: CLIENT_ID, callback: onCredential_ });
     google.accounts.id.renderButton(document.getElementById("gsiButton"), {
       type: "standard", theme: "outline", size: "large", text: "signin_with", shape: "pill", locale: "ru"
     });
+  }
+
+  function initGoogle_() {
+    if (!window.google || !google.accounts || !google.accounts.id) { setTimeout(initGoogle_, 150); return; }
+    // При открытии страницы напрямую с диска (file://) WebCrypto может
+    // быть недоступен — тогда вход всё равно проходит, просто без nonce
+    // (Supabase-сессия в этом случае не заводится, но старый вход не
+    // страдает: он от WebCrypto не зависит).
+    if (!window.crypto || !crypto.subtle || !crypto.randomUUID) { отрисоватьКнопку_(null); return; }
+    НОНС_СЫРОЙ = crypto.randomUUID();
+    crypto.subtle.digest("SHA-256", new TextEncoder().encode(НОНС_СЫРОЙ)).then(function (buf) {
+      var хэш = Array.prototype.map.call(new Uint8Array(buf), function (b) { return b.toString(16).padStart(2, "0"); }).join("");
+      отрисоватьКнопку_(хэш);
+    }, function () { отрисоватьКнопку_(null); });
   }
   initGoogle_();
 
