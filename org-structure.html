@@ -65,8 +65,8 @@ h1{font:700 32px/1.15 var(--font-heading);color:var(--it-teal-deep);margin:16px 
 .node-label{font-family:var(--font-heading);font-weight:700;fill:var(--it-ink-soft);
   text-anchor:middle;pointer-events:none;user-select:none}
 .node-label.on-fill{fill:#fff}
-.node-label.container{fill:var(--it-teal-deep)}
-.node-label-bg{fill:#E3F4EE;fill-opacity:.96;stroke:var(--it-mint);stroke-width:1;cursor:pointer}
+.node-label.container{fill:var(--it-teal-deep);paint-order:stroke;stroke:#E3F4EE;
+  stroke-width:5px;stroke-linejoin:round;stroke-linecap:round}
 
 .panel{flex:0 0 340px;min-width:280px;background:var(--it-white);border:1px solid var(--it-line);
   border-radius:16px;box-shadow:var(--shadow-sm);padding:22px;max-height:80vh;overflow:auto}
@@ -593,31 +593,13 @@ ul.plain li::before{content:"— "}
       var labelGroup = document.createElementNS(ns, "g");
       labelGroup.setAttribute("data-id", d.data.id);
 
-      if (!leaf) {
-        // Плашка-подложка под названием круга (как в Glassfrog) — на пёстром
-        // фоне из дочерних кругов голый текст было не разобрать.
-        var maxLineLen = Math.max.apply(null, layout.lines.map(function (l) { return l.length; }));
-        var idealW = maxLineLen * layout.fontSize * 0.62 + 16;
-        var boxH = layout.lines.length * lineHeight + 8;
-        var boxY = centered ? d.y - boxH / 2 : startY - layout.fontSize - 2;
-        // Ширина плашки раньше считалась без оглядки на сам круг — у
-        // маленьких кругов плашка визуально вылезала за их границу и
-        // выглядела так, будто соседний круг "заходит" на него. Здесь
-        // считаем реальную ширину круга на высоте плашки (хорда) и не
-        // даём плашке быть шире этого — с небольшим отступом от края.
-        var dyToCenter = Math.abs(boxY + boxH / 2 - d.y);
-        var chordHalf = Math.sqrt(Math.max(0, d.r * d.r - dyToCenter * dyToCenter));
-        var boxW = Math.min(idealW, chordHalf * 1.8);
-        var rect = document.createElementNS(ns, "rect");
-        rect.setAttribute("x", d.x - boxW / 2);
-        rect.setAttribute("y", boxY);
-        rect.setAttribute("width", boxW);
-        rect.setAttribute("height", boxH);
-        rect.setAttribute("rx", boxH / 2);
-        rect.setAttribute("class", "node-label-bg");
-        labelGroup.appendChild(rect);
-      }
-
+      // Раньше тут рисовалась прямоугольная плашка под названием круга —
+      // её ширина считалась по хорде круга в этом месте, а у контейнеров
+      // подпись стоит у самого верхнего края, где круг ещё узкий: хорда
+      // там короткая, плашка получалась уже текста и он вылезал за неё,
+      // выглядело как "круги наезжают друг на друга". Вместо плашки —
+      // мятная обводка прямо по буквам (paint-order:stroke в CSS), она
+      // всегда ровно по размеру текста и не зависит от формы круга.
       layout.lines.forEach(function (line, i) {
         var t = document.createElementNS(ns, "text");
         t.setAttribute("x", d.x);
