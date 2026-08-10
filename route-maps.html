@@ -286,9 +286,16 @@ h1{font:700 32px/1.15 var(--font-heading);color:var(--it-teal-deep);margin:16px 
     "galina.marushevskaia@iteal.expert",
     "anastasiia.edakina@iteal.expert"
   ];
-  var ТЕКУЩАЯ_ПОЧТА = (function () {
-    try { return (localStorage.getItem("iteal-talent-mail") || "").trim().toLowerCase(); } catch (e) { return ""; }
+  /* Почта сама по себе больше ничего не доказывает — её мог вписать кто
+     угодно. Настоящее подтверждение личности — токен, который выдаёт
+     сервер после входа через Google (talent-gate.html); без него почта
+     не считается подтверждённой, даже если когда-то была сохранена. */
+  var ТЕКУЩИЙ_ТОКЕН = (function () {
+    try { return (localStorage.getItem("iteal-session-token") || "").trim(); } catch (e) { return ""; }
   })();
+  var ТЕКУЩАЯ_ПОЧТА = ТЕКУЩИЙ_ТОКЕН ? (function () {
+    try { return (localStorage.getItem("iteal-talent-mail") || "").trim().toLowerCase(); } catch (e) { return ""; }
+  })() : "";
   var ЭТО_АДМИН = АДМИНЫ.indexOf(ТЕКУЩАЯ_ПОЧТА) !== -1;
 
   if (!ЭТО_АДМИН) {
@@ -337,6 +344,7 @@ h1{font:700 32px/1.15 var(--font-heading);color:var(--it-teal-deep);margin:16px 
   // тело не нужно, все данные едут прямо в адресе, редирект их не теряет.
   function postAction(payload, onDone) {
     if (!SEND_URL) { onDone(false, "адрес /exec ещё не вписан"); return; }
+    payload.token = ТЕКУЩИЙ_ТОКЕН;
     jsonp({ action: payload.kind, payload: JSON.stringify(payload) }, function (res) {
       if (!res || res.ok === false) { onDone(false, (res && res.error) || "нет ответа"); return; }
       // сервер эхом присылает, какое действие он реально выполнил — если оно не

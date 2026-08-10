@@ -375,9 +375,16 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     "galina.marushevskaia@iteal.expert",
     "anastasiia.edakina@iteal.expert"
   ];
-  var ТЕКУЩАЯ_ПОЧТА = (function () {
-    try { return (localStorage.getItem("iteal-talent-mail") || "").trim().toLowerCase(); } catch (e) { return ""; }
+  /* Почта сама по себе больше ничего не доказывает — её мог вписать кто
+     угодно. Настоящее подтверждение личности — токен, который выдаёт
+     сервер после входа через Google (talent-gate.html); без него почта
+     не считается подтверждённой, даже если когда-то была сохранена. */
+  var ТЕКУЩИЙ_ТОКЕН = (function () {
+    try { return (localStorage.getItem("iteal-session-token") || "").trim(); } catch (e) { return ""; }
   })();
+  var ТЕКУЩАЯ_ПОЧТА = ТЕКУЩИЙ_ТОКЕН ? (function () {
+    try { return (localStorage.getItem("iteal-talent-mail") || "").trim().toLowerCase(); } catch (e) { return ""; }
+  })() : "";
   var ЭТО_АДМИН = АДМИНЫ.indexOf(ТЕКУЩАЯ_ПОЧТА) !== -1;
 
   var ID = new URLSearchParams(location.search).get("id") || "";
@@ -437,6 +444,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
   function orgAction(kind, payload, onDone) {
     payload = payload || {};
     payload.mail = ТЕКУЩАЯ_ПОЧТА;
+    payload.token = ТЕКУЩИЙ_ТОКЕН;
     jsonp({ action: kind, payload: JSON.stringify(payload) }, function (res) {
       if (!res || res.ok === false) { onDone(false, (res && res.error) || "нет ответа"); return; }
       if (res._action !== undefined && res._action !== kind) {
