@@ -128,6 +128,17 @@ h1{font:700 32px/1.15 var(--font-heading);color:var(--it-teal-deep);margin:16px 
 </div>
 <button type="button" class="it-totop" id="toTop" aria-label="Наверх" title="Наверх">↑</button>
 <script>
+/* Раньше по прямой ссылке (минуя talent-gate.html) хаб открывался и
+   показывал карточки материалов без входа. Теперь без токена сразу
+   уводим на вход. */
+(function () {
+  var token = "";
+  try { token = (localStorage.getItem("iteal-session-token") || "").trim(); } catch (e) {}
+  if (!token) {
+    location.replace("talent-gate.html?return=" + encodeURIComponent(location.pathname + location.search));
+  }
+})();
+
 document.getElementById("toTop").addEventListener("click", function () {
   var rm = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   window.scrollTo({ top: 0, behavior: rm ? "auto" : "smooth" });

@@ -234,7 +234,14 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     window.scrollTo({ top: 0, behavior: rm ? "auto" : "smooth" });
   });
 
-  load();
+  /* Раньше по прямой ссылке (минуя talent-gate.html) страница показывала
+     сообщение "сначала войдите", но сам кабинет всё равно был открыт как
+     страница. Теперь без токена сразу уводим на вход. */
+  if (!ТЕКУЩИЙ_ТОКЕН) {
+    location.replace("talent-gate.html?return=" + encodeURIComponent(location.pathname + location.search));
+  } else {
+    load();
+  }
 })();
 </script>
 </body>

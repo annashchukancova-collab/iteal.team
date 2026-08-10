@@ -574,11 +574,16 @@ ul.plain li::before{content:"— "}
 
       var showLabel = leaf ? d.r >= 16 : d.r >= 26;
       if (!showLabel) return;
+      var isRoot = d.depth === 0;
       var layout = layoutLabel_(d.data.name, d.r, leaf);
       if (!layout.lines.length) return;
       var cls = "node-label" + (filled ? " on-fill" : "") + (!leaf ? " container" : "");
       var lineHeight = layout.fontSize * 1.15;
-      var startY = leaf ? d.y - (layout.lines.length - 1) * lineHeight / 2 : d.y - d.r + layout.fontSize + 2;
+      // iTeal (корень) — подпись сверху, как и была. Все остальные круги,
+      // включая обычные круги-контейнеры (не только роли), — по центру:
+      // у самого верха название норовит спрятаться под дочерними кругами.
+      var centered = !isRoot;
+      var startY = centered ? d.y - (layout.lines.length - 1) * lineHeight / 2 : d.y - d.r + layout.fontSize + 2;
 
       var labelGroup = document.createElementNS(ns, "g");
       labelGroup.setAttribute("data-id", d.data.id);
@@ -591,7 +596,7 @@ ul.plain li::before{content:"— "}
         var boxH = layout.lines.length * lineHeight + 8;
         var rect = document.createElementNS(ns, "rect");
         rect.setAttribute("x", d.x - boxW / 2);
-        rect.setAttribute("y", startY - layout.fontSize - 2);
+        rect.setAttribute("y", centered ? d.y - boxH / 2 : startY - layout.fontSize - 2);
         rect.setAttribute("width", boxW);
         rect.setAttribute("height", boxH);
         rect.setAttribute("rx", boxH / 2);
@@ -605,7 +610,7 @@ ul.plain li::before{content:"— "}
         t.setAttribute("y", startY + i * lineHeight);
         t.setAttribute("font-size", layout.fontSize);
         t.setAttribute("class", cls);
-        if (leaf) t.setAttribute("dominant-baseline", "middle");
+        if (centered) t.setAttribute("dominant-baseline", "middle");
         t.textContent = line;
         labelGroup.appendChild(t);
       });
@@ -925,7 +930,15 @@ ul.plain li::before{content:"— "}
     window.scrollTo({ top: 0, behavior: rm ? "auto" : "smooth" });
   });
 
-  load();
+  /* Раньше по прямой ссылке (минуя talent-gate.html) страница всё равно
+     подгружала и показывала структуру целиком — вход проверялся только
+     для редактирования, а не для просмотра. Теперь без токена сразу
+     уводим на вход, ничего не запрашивая и не показывая. */
+  if (!ТЕКУЩИЙ_ТОКЕН) {
+    location.replace("talent-gate.html?return=" + encodeURIComponent(location.pathname + location.search));
+  } else {
+    load();
+  }
 })();
 </script>
 </body>

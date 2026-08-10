@@ -579,7 +579,15 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     window.scrollTo({ top: 0, behavior: rm ? "auto" : "smooth" });
   });
 
-  load();
+  /* Раньше по прямой ссылке (минуя talent-gate.html) страница всё равно
+     показывала итоги встреч — вход проверялся только для редактирования,
+     а не для просмотра. Теперь без токена сразу уводим на вход, ничего
+     не запрашивая и не показывая. */
+  if (!ТЕКУЩИЙ_ТОКЕН) {
+    location.replace("talent-gate.html?return=" + encodeURIComponent(location.pathname + location.search));
+  } else {
+    load();
+  }
 })();
 </script>
 </body>

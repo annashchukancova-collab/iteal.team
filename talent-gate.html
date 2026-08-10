@@ -85,9 +85,23 @@ h1{font:700 30px/1.2 var(--font-heading);color:var(--it-teal-deep);margin:16px 0
 
   var CLIENT_ID = "133153505092-5a7botcfrpenjsfaqto20hp1fbcjg10d.apps.googleusercontent.com";
   var SEND_URL = "https://script.google.com/a/macros/iteal.expert/s/AKfycbyvNwCQIvoEIHytg18mItMlTpVbOEaijGxsjjCZ7om4jU7EsKH4DZtmh--FFVmtQrQPcw/exec";
-  // Куда попадает любой сотрудник iteal.expert (включая админов) — страница
-  // выбора, куда идти дальше (материалы, маршрутные карты и т.д.).
+  // Куда попадает сотрудник, если он не пришёл по прямой ссылке на
+  // конкретный материал (см. ВОЗВРАТ ниже) — страница выбора, куда идти
+  // дальше (материалы, маршрутные карты и т.д.).
   var СТРАНИЦА_МАТЕРИАЛОВ = "talent-hub.html";
+
+  // Любая из гейтованных страниц, встретив пользователя без токена, шлёт
+  // сюда с ?return=<её же адрес> — после входа мы возвращаем именно туда,
+  // а не всегда на хаб. Проверяем, что это относительный адрес нашего же
+  // сайта, а не чужой домен — иначе это была бы дыра для открытого
+  // редиректа (?return=https://чужой-сайт после настоящего входа через
+  // Google увёл бы уже подтверждённого пользователя куда угодно).
+  function безопасныйВозврат_(v) {
+    v = String(v || "");
+    if (!v || v.indexOf("//") === 0 || /^[a-z][a-z0-9+.-]*:/i.test(v)) return "";
+    return v;
+  }
+  var ВОЗВРАТ = безопасныйВозврат_(new URLSearchParams(location.search).get("return")) || СТРАНИЦА_МАТЕРИАЛОВ;
 
   // Если вход уже подтверждён раньше (токен лежит в localStorage) — не
   // спрашиваем заново при каждом переходе на вкладку «Для талантов». Если
@@ -100,7 +114,7 @@ h1{font:700 30px/1.2 var(--font-heading);color:var(--it-teal-deep);margin:16px 0
       естьВход = !!(localStorage.getItem("iteal-session-token") && localStorage.getItem("iteal-talent-mail"));
     } catch (e) {}
     if (естьВход) {
-      location.replace(СТРАНИЦА_МАТЕРИАЛОВ);
+      location.replace(ВОЗВРАТ);
       return;
     }
   }
@@ -150,7 +164,7 @@ h1{font:700 30px/1.2 var(--font-heading);color:var(--it-teal-deep);margin:16px 0
         localStorage.setItem("iteal-talent-mail", res.mail);
       } catch (e) {}
       showResult('<span class="spinner"></span>Открываю…');
-      location.href = СТРАНИЦА_МАТЕРИАЛОВ;
+      location.href = ВОЗВРАТ;
     }, function (why) {
       showResult('<p class="big">Не получилось войти</p><p>' + эк(why) + "</p>", "err");
     }, 15000);

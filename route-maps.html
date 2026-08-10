@@ -510,7 +510,15 @@ h1{font:700 32px/1.15 var(--font-heading);color:var(--it-teal-deep);margin:16px 
     });
   });
 
-  loadList(false);
+  /* Раньше по прямой ссылке (минуя talent-gate.html) страница всё равно
+     показывала оболочку списка карт — вход проверялся только для
+     редактирования, а не для просмотра. Теперь без токена сразу уводим
+     на вход, ничего не запрашивая и не показывая. */
+  if (!ТЕКУЩИЙ_ТОКЕН) {
+    location.replace("talent-gate.html?return=" + encodeURIComponent(location.pathname + location.search));
+  } else {
+    loadList(false);
+  }
 
   document.getElementById('toTop').addEventListener('click', function () {
     var rm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
