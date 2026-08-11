@@ -74,7 +74,7 @@ h1{font:700 32px/1.15 var(--font-heading);color:var(--it-teal-deep);margin:16px 
   overflow-wrap:break-word;word-break:break-word}
 .panel .ph{color:var(--it-grey);font-size:14px}
 .panel h2{font:700 20px/1.3 var(--font-heading);color:var(--it-teal-deep);margin:0 0 4px}
-.panel .kind{font-size:12px;color:var(--it-grey);text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px}
+.panel .kind{font-size:12px;color:var(--it-grey);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
 .f{margin-top:14px}
 .f label{display:block;font:600 12px var(--font-body);color:var(--it-grey);margin-bottom:6px;
   text-transform:uppercase;letter-spacing:.04em}
@@ -117,15 +117,15 @@ ul.plain li::before{content:"— "}
    кнопка "+ добавить"), скачет по высоте, и клик может промахнуться мимо
    уехавшей кнопки (баг "кнопки прыгают, надо жать дважды"). */
 .rtbar.floating{position:sticky;top:16px;z-index:9;background:var(--it-white);border:1px solid var(--it-line);
-  border-radius:10px;box-shadow:var(--shadow-sm);padding:6px 8px;margin:0 0 14px;width:max-content;
+  border-radius:8px;box-shadow:var(--shadow-sm);padding:3px 5px;margin:0 0 8px;width:max-content;
   visibility:hidden;pointer-events:none}
 .rtbar.floating.show{visibility:visible;pointer-events:auto}
-.rtbar{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
-.rtbar button{width:28px;height:28px;border:1px solid var(--it-line);background:var(--it-white);
-  border-radius:6px;cursor:pointer;font:600 12px var(--font-body);color:var(--it-ink-soft)}
+.rtbar{display:flex;gap:3px;align-items:center;flex-wrap:wrap}
+.rtbar button{width:22px;height:22px;border:1px solid var(--it-line);background:var(--it-white);
+  border-radius:5px;cursor:pointer;font:600 11px var(--font-body);color:var(--it-ink-soft)}
 .rtbar button:hover{background:var(--it-paper)}
-.rtbar input[type=color]{width:28px;height:28px;border:1px solid var(--it-line);border-radius:6px;
-  padding:2px;background:var(--it-white);cursor:pointer}
+.rtbar input[type=color]{width:22px;height:22px;border:1px solid var(--it-line);border-radius:5px;
+  padding:1px;background:var(--it-white);cursor:pointer}
 
 .actions{margin-top:20px;display:flex;flex-direction:column;gap:8px}
 .btn{font:600 14px var(--font-body);border:1px solid var(--it-teal);background:var(--it-white);
