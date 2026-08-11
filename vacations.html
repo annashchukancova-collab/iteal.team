@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@500;700&family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
 :root{
   --it-teal:#43836D; --it-teal-deep:#2C5748; --it-mint:#7AC1A8; --it-accent:#FFD54F;
@@ -197,27 +198,18 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
   function itAlert_(message) {
     return itModal_({ message: message, isPrompt: false, showCancel: false, okText: "Понятно" });
   }
-  var SEND_URL = "https://script.google.com/a/macros/iteal.expert/s/AKfycbyvNwCQIvoEIHytg18mItMlTpVbOEaijGxsjjCZ7om4jU7EsKH4DZtmh--FFVmtQrQPcw/exec";
-  var АДМИНЫ = [
-    "anna.shchukancova@iteal.expert",
-    "pavel.stupko@iteal.expert",
-    "galina.marushevskaia@iteal.expert",
-    "anastasiia.edakina@iteal.expert"
-  ];
-  /* Почта сама по себе больше ничего не доказывает — её мог вписать кто
-     угодно. Настоящее подтверждение личности — токен, который выдаёт
-     сервер после входа через Google (talent-gate.html); без него почта
-     не считается подтверждённой, даже если когда-то была сохранена. */
-  var ТЕКУЩИЙ_ТОКЕН = (function () {
-    try { return (localStorage.getItem("iteal-session-token") || "").trim(); } catch (e) { return ""; }
-  })();
-  var ТЕКУЩАЯ_ПОЧТА = ТЕКУЩИЙ_ТОКЕН ? (function () {
-    try { return (localStorage.getItem("iteal-talent-mail") || "").trim().toLowerCase(); } catch (e) { return ""; }
-  })() : "";
-  var ЭТО_АДМИН = АДМИНЫ.indexOf(ТЕКУЩАЯ_ПОЧТА) !== -1;
+  var SUPABASE_URL = "https://evqvzapbbtnfidvnhgxe.supabase.co";
+  var SUPABASE_ANON_KEY = "sb_publishable_3ACYfKH82rtlVdt1olMHIA_GvP5KjYi";
+  var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  var ТЕКУЩАЯ_ПОЧТА = "";
+  var ЭТО_АДМИН = false;
   var MEMBERS = [];
   var MY_NAME = "";
   var VACATIONS = [];
+
+  // Пустая строка в Supabase хранится как NULL, а не "".
+  function пусто_(v) { v = (v || "").trim(); return v === "" ? null : v; }
 
   function эк(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
@@ -225,40 +217,36 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
     });
   }
 
-  function jsonp(params, ok, err, ms) {
-    if (!SEND_URL) { err("адрес /exec ещё не вписан в SEND_URL"); return; }
-    var name = "__iteal_vac_" + Date.now() + "_" + Math.floor(Math.random() * 1e6);
-    var sc = document.createElement("script");
-    var done = false;
-    var tm = setTimeout(function () { fin(err, "нет ответа"); }, ms || 12000);
-    function fin(fn, arg) {
-      if (done) return; done = true; clearTimeout(tm);
-      try { delete window[name]; } catch (e) { window[name] = undefined; }
-      sc.remove(); if (fn) fn(arg);
-    }
-    window[name] = function (data) { fin(ok, data); };
-    sc.onerror = function () { fin(err, "нет доступа к адресу"); };
-    var qs = "callback=" + name;
-    Object.keys(params || {}).forEach(function (k) { qs += "&" + k + "=" + encodeURIComponent(params[k]); });
-    sc.src = SEND_URL + (SEND_URL.indexOf("?") < 0 ? "?" : "&") + qs + "&t=" + Date.now();
-    document.head.appendChild(sc);
-  }
-
-  /* teamAction переиспользуем как есть — это просто jsonp-обёртка с почтой
-     текущего пользователя, имя осталось от команды исторически, но подходит
-     для любого action'а с той же серверной проверкой прав. */
+  // "author" в payload больше не отправляем — его в любом случае
+  // перезапишет триггер на стороне базы (vacations_set_author), сверяя с
+  // настоящей сессией, а не с тем, что прислал браузер.
   function teamAction(kind, payload, onDone) {
     payload = payload || {};
-    payload.mail = ТЕКУЩАЯ_ПОЧТА;
-    payload.token = ТЕКУЩИЙ_ТОКЕН;
-    jsonp({ action: kind, payload: JSON.stringify(payload) }, function (res) {
-      if (!res || res.ok === false) { onDone(false, (res && res.error) || "нет ответа"); return; }
-      if (res._action !== undefined && res._action !== kind) {
-        onDone(false, "сервер не выполнил «" + kind + "» — похоже, развёрнута старая версия Маршрутные-карты.gs");
-        return;
+    (async function () {
+      try {
+        var r;
+        switch (kind) {
+          case "vacationAdd":
+            r = await sb.from("vacations").insert({
+              employee: payload.employee,
+              start_date: payload.start,
+              end_date: payload.end,
+              comment: пусто_(payload.comment)
+            }).select().single();
+            break;
+          case "vacationDelete":
+            r = await sb.from("vacations").delete().eq("id", payload.id);
+            break;
+          default:
+            onDone(false, "неизвестное действие: " + kind);
+            return;
+        }
+        if (r.error) { onDone(false, r.error.message); return; }
+        onDone(true, r.data || {});
+      } catch (e) {
+        onDone(false, (e && e.message) || String(e));
       }
-      onDone(true, res);
-    }, function (why) { onDone(false, why); }, 15000);
+    })();
   }
 
   function fmtDate_(s) {
@@ -369,10 +357,9 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
       if (!start || !end) { itAlert_("Укажите даты начала и окончания."); return; }
       var btn = row.querySelector('[data-act="save"]');
       btn.disabled = true;
-      var id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-      teamAction("vacationAdd", { id: id, employee: employee, start: start, end: end, comment: comment }, function (ok, resOrWhy) {
+      teamAction("vacationAdd", { employee: employee, start: start, end: end, comment: comment }, function (ok, resOrWhy) {
         if (!ok) { itAlert_("Не сохранилось: " + resOrWhy); btn.disabled = false; return; }
-        VACATIONS.push({ id: id, employee: employee, start: start, end: end, comment: comment, author: ТЕКУЩАЯ_ПОЧТА });
+        VACATIONS.push({ id: resOrWhy.id, employee: employee, start: start, end: end, comment: comment, author: ТЕКУЩАЯ_ПОЧТА });
         renderVacations_();
       });
     });
@@ -380,34 +367,36 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
     if (employeeSel) employeeSel.focus(); else row.querySelector(".v-start").focus();
   });
 
+  // Поля из Supabase (start_date/end_date) приводим к тем же именам, что
+  // были в ответе старого vacationList (start/end) — рендер ниже написан
+  // под эти имена, трогать его не пришлось.
+  function vacRowToItem_(r) {
+    return { id: r.id, employee: r.employee, start: r.start_date, end: r.end_date, comment: r.comment, author: r.author };
+  }
+
   function loadVacations_() {
-    jsonp({ action: "vacationList" }, function (res) {
-      if (!res || res.ok === false) {
-        document.getElementById("teamStatus").textContent = "Не получилось загрузить отпуска: " + ((res && res.error) || "нет ответа") + ".";
+    sb.from("vacations").select("*").then(function (res) {
+      if (res.error) {
+        document.getElementById("teamStatus").textContent = "Не получилось загрузить отпуска: " + res.error.message + ".";
         document.getElementById("teamStatus").className = "status err";
         return;
       }
-      VACATIONS = res.items || [];
+      VACATIONS = (res.data || []).map(vacRowToItem_);
       document.getElementById("teamStatus").hidden = true;
       document.getElementById("vacTableWrap").hidden = false;
       renderVacations_();
-    }, function (why) {
-      document.getElementById("teamStatus").textContent = "Нет связи с сервером: " + why + ".";
-      document.getElementById("teamStatus").className = "status err";
-    }, 15000);
+    });
   }
 
   function load() {
-    jsonp({ action: "teamList" }, function (res) {
-      MEMBERS = (res && res.members) || [];
+    // "Команда" теперь тоже в Supabase (перенесена на предыдущем шаге) —
+    // читаем оттуда же, иначе тут была бы устаревшая копия из старых Sheets.
+    sb.from("team_members").select("name, work_mail").then(function (res) {
+      MEMBERS = (res.data || []).map(function (r) { return { name: r.name, mail: r.work_mail }; });
       var me = MEMBERS.filter(function (m) { return String(m.mail || "").trim().toLowerCase() === ТЕКУЩАЯ_ПОЧТА; })[0];
       MY_NAME = me ? me.name : "";
       loadVacations_();
-    }, function () {
-      /* "Команда" не загрузилась — отпуска всё равно показываем, просто без
-         подстановки собственного имени и без выпадающего списка у админа. */
-      loadVacations_();
-    }, 15000);
+    });
   }
 
   document.getElementById("toTop").addEventListener("click", function () {
@@ -417,13 +406,23 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
 
   /* Раньше по прямой ссылке (минуя talent-gate.html) страница всё равно
      показывала график отпусков — вход проверялся только для
-     редактирования, а не для просмотра. Теперь без токена сразу уводим
-     на вход, ничего не запрашивая и не показывая. */
-  if (!ТЕКУЩИЙ_ТОКЕН) {
-    location.replace("talent-gate.html?return=" + encodeURIComponent(location.pathname + location.search));
-  } else {
+     редактирования, а не для просмотра. Теперь без сессии сразу уводим
+     на вход, ничего не запрашивая и не показывая. "again=1" — см.
+     подробное объяснение в team.html: без него человек со старой (ещё
+     не Supabase) сессией зациклился бы между этой страницей и входом. */
+  async function bootstrap_() {
+    var sess = await sb.auth.getSession();
+    var session = sess && sess.data && sess.data.session;
+    if (!session) {
+      location.replace("talent-gate.html?again=1&return=" + encodeURIComponent(location.pathname + location.search));
+      return;
+    }
+    ТЕКУЩАЯ_ПОЧТА = String(session.user.email || "").trim().toLowerCase();
+    var prof = await sb.from("profiles").select("is_admin").eq("id", session.user.id).single();
+    ЭТО_АДМИН = !!(prof.data && prof.data.is_admin);
     load();
   }
+  bootstrap_();
 })();
 </script>
 </body>

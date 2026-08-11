@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@500;700&family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
 :root{
   --it-teal:#43836D; --it-teal-deep:#2C5748; --it-mint:#7AC1A8; --it-accent:#FFD54F;
@@ -182,25 +183,12 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
 (function () {
   "use strict";
 
-  var SEND_URL = "https://script.google.com/a/macros/iteal.expert/s/AKfycbyvNwCQIvoEIHytg18mItMlTpVbOEaijGxsjjCZ7om4jU7EsKH4DZtmh--FFVmtQrQPcw/exec";
+  var SUPABASE_URL = "https://evqvzapbbtnfidvnhgxe.supabase.co";
+  var SUPABASE_ANON_KEY = "sb_publishable_3ACYfKH82rtlVdt1olMHIA_GvP5KjYi";
+  var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  var АДМИНЫ = [
-    "anna.shchukancova@iteal.expert",
-    "pavel.stupko@iteal.expert",
-    "galina.marushevskaia@iteal.expert",
-    "anastasiia.edakina@iteal.expert"
-  ];
-  /* Почта сама по себе больше ничего не доказывает — её мог вписать кто
-     угодно. Настоящее подтверждение личности — токен, который выдаёт
-     сервер после входа через Google (talent-gate.html); без него почта
-     не считается подтверждённой, даже если когда-то была сохранена. */
-  var ТЕКУЩИЙ_ТОКЕН = (function () {
-    try { return (localStorage.getItem("iteal-session-token") || "").trim(); } catch (e) { return ""; }
-  })();
-  var ТЕКУЩАЯ_ПОЧТА = ТЕКУЩИЙ_ТОКЕН ? (function () {
-    try { return (localStorage.getItem("iteal-talent-mail") || "").trim().toLowerCase(); } catch (e) { return ""; }
-  })() : "";
-  var ЭТО_АДМИН = АДМИНЫ.indexOf(ТЕКУЩАЯ_ПОЧТА) !== -1;
+  var ТЕКУЩАЯ_ПОЧТА = "";
+  var ЭТО_АДМИН = false;
 
   var РАЗД = String.fromCharCode(31);
   var TYPES = ["tactical", "governance", "retro"];
@@ -234,54 +222,47 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     return (el.textContent || "").trim();
   }
 
-  function jsonp(params, ok, err, ms) {
-    if (!SEND_URL) { err("адрес /exec ещё не вписан в SEND_URL"); return; }
-    var name = "__iteal_role_" + Date.now() + "_" + Math.floor(Math.random() * 1e6);
-    var sc = document.createElement("script");
-    var done = false;
-    var tm = setTimeout(function () { fin(err, "нет ответа"); }, ms || 12000);
-    function fin(fn, arg) {
-      if (done) return; done = true; clearTimeout(tm);
-      try { delete window[name]; } catch (e) { window[name] = undefined; }
-      sc.remove(); if (fn) fn(arg);
-    }
-    window[name] = function (data) { fin(ok, data); };
-    sc.onerror = function () { fin(err, "нет доступа к адресу"); };
-    var qs = "callback=" + name;
-    Object.keys(params || {}).forEach(function (k) { qs += "&" + k + "=" + encodeURIComponent(params[k]); });
-    sc.src = SEND_URL + (SEND_URL.indexOf("?") < 0 ? "?" : "&") + qs + "&t=" + Date.now();
-    document.head.appendChild(sc);
-  }
-
+  // "author" в payload больше не отправляем — его перезапишет триггер на
+  // стороне базы (meeting_notes_set_author), сверяя с настоящей сессией.
   function meetingAction(kind, payload, onDone) {
     payload = payload || {};
-    payload.mail = ТЕКУЩАЯ_ПОЧТА;
-    payload.token = ТЕКУЩИЙ_ТОКЕН;
-    jsonp({ action: kind, payload: JSON.stringify(payload) }, function (res) {
-      if (!res || res.ok === false) { onDone(false, (res && res.error) || "нет ответа"); return; }
-      if (res._action !== undefined && res._action !== kind) {
-        onDone(false, "сервер не выполнил «" + kind + "» — похоже, развёрнута старая версия Маршрутные-карты.gs");
-        return;
+    (async function () {
+      try {
+        var r;
+        switch (kind) {
+          case "meetingAdd":
+            r = await sb.from("meeting_notes").insert({
+              type: payload.type, date: payload.date, text: payload.text,
+              attachments: payload.attachments && payload.attachments.length ? payload.attachments : []
+            }).select().single();
+            break;
+          case "meetingDelete":
+            r = await sb.from("meeting_notes").delete().eq("id", payload.id);
+            break;
+          default:
+            onDone(false, "неизвестное действие: " + kind);
+            return;
+        }
+        if (r.error) { onDone(false, r.error.message); return; }
+        onDone(true, r.data || {});
+      } catch (e) {
+        onDone(false, (e && e.message) || String(e));
       }
-      onDone(true, res);
-    }, function (why) { onDone(false, why); }, 15000);
+    })();
   }
 
   function load() {
-    jsonp({ action: "meetingList" }, function (res) {
-      if (!res || res.ok === false) {
-        $("#status").textContent = "Не получилось загрузить итоги: " + ((res && res.error) || "нет ответа") + ".";
+    sb.from("meeting_notes").select("*").then(function (res) {
+      if (res.error) {
+        $("#status").textContent = "Не получилось загрузить итоги: " + res.error.message + ".";
         $("#status").className = "status err";
         return;
       }
-      ITEMS = res.items || [];
+      ITEMS = res.data || [];
       $("#status").hidden = true;
       $("#app").hidden = false;
       render();
-    }, function (why) {
-      $("#status").textContent = "Нет связи с сервером: " + why + ".";
-      $("#status").className = "status err";
-    }, 15000);
+    });
   }
 
   /* ------------------------------  общий плавающий тулбар  ----------------- */
@@ -542,10 +523,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
         if (!plainText_(text)) { alert("Напишите текст итога."); return; }
         var date = document.getElementById("entryDate").value;
         if (!date) { alert("Укажите дату встречи."); return; }
-        var payload = {
-          id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
-          type: ACTIVE_TYPE, date: date, text: text, attachments: gatherAttachments_()
-        };
+        var payload = { type: ACTIVE_TYPE, date: date, text: text, attachments: gatherAttachments_() };
         var btn = document.getElementById("addEntryBtn");
         btn.disabled = true; btn.textContent = "Сохраняю…";
         meetingAction("meetingAdd", payload, function (ok, resOrWhy) {
@@ -581,13 +559,23 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
 
   /* Раньше по прямой ссылке (минуя talent-gate.html) страница всё равно
      показывала итоги встреч — вход проверялся только для редактирования,
-     а не для просмотра. Теперь без токена сразу уводим на вход, ничего
-     не запрашивая и не показывая. */
-  if (!ТЕКУЩИЙ_ТОКЕН) {
-    location.replace("talent-gate.html?return=" + encodeURIComponent(location.pathname + location.search));
-  } else {
+     а не для просмотра. Теперь без сессии сразу уводим на вход, ничего
+     не запрашивая и не показывая. "again=1" — см. подробное объяснение в
+     team.html: без него человек со старой (ещё не Supabase) сессией
+     зациклился бы между этой страницей и входом. */
+  async function bootstrap_() {
+    var sess = await sb.auth.getSession();
+    var session = sess && sess.data && sess.data.session;
+    if (!session) {
+      location.replace("talent-gate.html?again=1&return=" + encodeURIComponent(location.pathname + location.search));
+      return;
+    }
+    ТЕКУЩАЯ_ПОЧТА = String(session.user.email || "").trim().toLowerCase();
+    var prof = await sb.from("profiles").select("is_admin").eq("id", session.user.id).single();
+    ЭТО_АДМИН = !!(prof.data && prof.data.is_admin);
     load();
   }
+  bootstrap_();
 })();
 </script>
 </body>
