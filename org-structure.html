@@ -571,6 +571,43 @@ ul.plain li::before{content:"— "}
       d.y = root.y + (d.y - root.y) * СЖАТИЕ_ОТ_КОРНЯ;
     });
 
+    // "Одиночные" роли прямо под корнем (не внутри одного из кругов, как
+    // Секретарь и Фасилитатор) — паковщик втискивает их в любой оставшийся
+    // зазор между кругами, и там их подпись легко перекрывается подписью
+    // соседнего круга. Переносим такие роли в самый свободный промежуток по
+    // периметру корневого круга — только отображение, кто чей родитель в
+    // данных не меняется.
+    (function разложитьОдиночек_() {
+      var containers = [], loners = [];
+      (root.children || []).forEach(function (d) {
+        (d.children && d.children.length ? containers : loners).push(d);
+      });
+      if (!loners.length || !containers.length) return;
+
+      var занятые = containers.map(function (c) {
+        var dist = Math.max(Math.hypot(c.x - root.x, c.y - root.y), c.r);
+        return { angle: Math.atan2(c.y - root.y, c.x - root.x), half: Math.asin(Math.min(1, c.r / dist)) };
+      }).sort(function (a, b) { return a.angle - b.angle; });
+
+      var зазоры = [];
+      for (var i = 0; i < занятые.length; i++) {
+        var cur = занятые[i], next = занятые[(i + 1) % занятые.length];
+        var from = cur.angle + cur.half;
+        var to = next.angle - next.half + (i === занятые.length - 1 ? 2 * Math.PI : 0);
+        if (to > from) зазоры.push({ from: from, to: to });
+      }
+      if (!зазоры.length) return;
+      зазоры.sort(function (a, b) { return (b.to - b.from) - (a.to - a.from); });
+
+      loners.forEach(function (d, i) {
+        var slot = зазоры[i % зазоры.length];
+        var angle = (slot.from + slot.to) / 2;
+        var radius = root.r - d.r - 6;
+        d.x = root.x + radius * Math.cos(angle);
+        d.y = root.y + radius * Math.sin(angle);
+      });
+    })();
+
     var svg = $("#svg");
     svg.setAttribute("viewBox", "0 0 " + W + " " + H);
     svg.innerHTML = "";
