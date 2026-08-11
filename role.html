@@ -73,8 +73,10 @@ a{color:var(--it-teal)}
   cursor:pointer;box-shadow:0 6px 18px rgba(28,38,34,.25);display:flex;align-items:center;justify-content:center}
 .it-totop:hover{background:#233F35}
 @media print{
+  * {-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .it-totop,.it-nav,.minimap-panel,.pencilwrap{display:none !important}
   .sec-block{display:block !important}
+  #sec-history{display:none !important}
   .toc{display:none !important}
   .layout{display:block !important}
   .card{max-width:none !important}
