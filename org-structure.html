@@ -54,9 +54,9 @@ h1{font:700 32px/1.15 var(--font-heading);color:var(--it-teal-deep);margin:16px 
 
 .layout{margin-top:24px;display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap}
 .layout[hidden]{display:none}
-.stage{flex:1 1 480px;min-width:280px;background:var(--it-white);border:1px solid var(--it-line);
+.stage{flex:1 1 480px;max-width:640px;min-width:280px;background:var(--it-white);border:1px solid var(--it-line);
   border-radius:16px;box-shadow:var(--shadow-sm);padding:12px}
-.stage svg{display:block;width:100%;height:auto;max-height:max(360px, calc(100vh - 350px))}
+.stage svg{display:block;width:100%;height:auto}
 .node-circle{cursor:pointer}
 .node-circle.root{fill:rgba(44,87,72,.03);stroke:var(--it-teal-deep);stroke-width:2.5}
 .node-circle.container{fill:rgba(67,131,109,.08);stroke:var(--it-teal);stroke-width:1.5}
@@ -69,7 +69,7 @@ h1{font:700 32px/1.15 var(--font-heading);color:var(--it-teal-deep);margin:16px 
 .node-label.container{fill:var(--it-teal-deep);paint-order:stroke;stroke:#E3F4EE;
   stroke-width:5px;stroke-linejoin:round;stroke-linecap:round}
 
-.panel{flex:0 0 420px;min-width:320px;background:var(--it-white);border:1px solid var(--it-line);
+.panel{flex:1 1 420px;max-width:520px;min-width:320px;background:var(--it-white);border:1px solid var(--it-line);
   border-radius:16px;box-shadow:var(--shadow-sm);padding:22px;max-height:80vh;overflow-y:auto;overflow-x:hidden;
   overflow-wrap:break-word;word-break:break-word}
 .panel .ph{color:var(--it-grey);font-size:14px}
@@ -650,12 +650,13 @@ ul.plain li::before{content:"— "}
     if (!text) return { fontSize: 0, lines: [] };
     // У листьев (ролей) подпись по центру — 3 строки безопасны, сталкиваться
     // там не с кем. У контейнеров подпись стоит у верхнего края круга и
-    // растёт вниз — при длинном названии ("Искренние продажи и маркетинг")
-    // 3 строки дотягивались почти до центра круга и наезжали на дочерние
-    // круги/подписи. Держим контейнеры в 2 строках, а более широкий допуск
-    // по ширине (иначе они и не влезли бы) не даёт словам разрываться
-    // посреди буквы вместо переноса между словами.
-    var maxLines = leaf ? 3 : 2;
+    // растёт вниз — а дочерние круги нередко упакованы почти вплотную к
+    // краю (мало детей — им незачем сжиматься). Даже 2 строки при таком
+    // раскладе всё равно доставали до детей ("Искренние продажи и
+    // маркетинг" наезжал на "Хранитель стиля"). Одна строка + многоточие —
+    // жертвуем полным названием ради читаемости, полное имя видно в
+    // карточке справа при клике на круг.
+    var maxLines = leaf ? 3 : 1;
     var minFs = 7;
     var fs = Math.max(minFs, Math.min(leaf ? 13 : 12, r / (leaf ? 3.2 : 3.6)));
     var availWidth = r * (leaf ? 1.5 : 1.9);
