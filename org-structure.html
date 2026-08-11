@@ -599,12 +599,29 @@ ul.plain li::before{content:"— "}
       if (!зазоры.length) return;
       зазоры.sort(function (a, b) { return (b.to - b.from) - (a.to - a.from); });
 
+      var placed = [];
+      function пересекается_(x, y, r) {
+        return containers.concat(placed).some(function (o) {
+          return Math.hypot(x - o.x, y - o.y) < o.r + r + 8;
+        });
+      }
+
       loners.forEach(function (d, i) {
         var slot = зазоры[i % зазоры.length];
         var angle = (slot.from + slot.to) / 2;
-        var radius = root.r - d.r - 6;
-        d.x = root.x + radius * Math.cos(angle);
-        d.y = root.y + radius * Math.sin(angle);
+        var maxRadius = root.r - d.r - 6;
+        // Начинаем ближе к центру (к соседним кругам), а не у самого края —
+        // отодвигаем дальше только если иначе задели бы соседний круг.
+        var radius = maxRadius * 0.55;
+        var x, y;
+        do {
+          x = root.x + radius * Math.cos(angle);
+          y = root.y + radius * Math.sin(angle);
+          radius += 10;
+        } while (пересекается_(x, y, d.r) && radius < maxRadius);
+        d.x = x;
+        d.y = y;
+        placed.push({ x: x, y: y, r: d.r });
       });
     })();
 
