@@ -127,16 +127,20 @@ h1{font:700 32px/1.15 var(--font-heading);color:var(--it-teal-deep);margin:16px 
 
 </div>
 <button type="button" class="it-totop" id="toTop" aria-label="Наверх" title="Наверх">↑</button>
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script>
 /* Раньше по прямой ссылке (минуя talent-gate.html) хаб открывался и
-   показывал карточки материалов без входа. Теперь без токена сразу
+   показывал карточки материалов без входа. Теперь без сессии сразу
    уводим на вход. */
 (function () {
-  var token = "";
-  try { token = (localStorage.getItem("iteal-session-token") || "").trim(); } catch (e) {}
-  if (!token) {
-    location.replace("talent-gate.html?return=" + encodeURIComponent(location.pathname + location.search));
-  }
+  var SUPABASE_URL = "https://evqvzapbbtnfidvnhgxe.supabase.co";
+  var SUPABASE_ANON_KEY = "sb_publishable_3ACYfKH82rtlVdt1olMHIA_GvP5KjYi";
+  var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  sb.auth.getSession().then(function (res) {
+    if (!res.data || !res.data.session) {
+      location.replace("talent-gate.html?again=1&return=" + encodeURIComponent(location.pathname + location.search));
+    }
+  });
 })();
 
 document.getElementById("toTop").addEventListener("click", function () {

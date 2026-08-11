@@ -85,12 +85,7 @@ h1{font:700 30px/1.2 var(--font-heading);color:var(--it-teal-deep);margin:16px 0
   "use strict";
 
   var CLIENT_ID = "133153505092-5a7botcfrpenjsfaqto20hp1fbcjg10d.apps.googleusercontent.com";
-  var SEND_URL = "https://script.google.com/a/macros/iteal.expert/s/AKfycbyvNwCQIvoEIHytg18mItMlTpVbOEaijGxsjjCZ7om4jU7EsKH4DZtmh--FFVmtQrQPcw/exec";
 
-  // Вторая, независимая сессия — для страниц, уже переехавших на Supabase
-  // (см. миграцию с Apps Script). Заводится из того же Google-токена, что
-  // и старый вход выше, но не подменяет и не трогает его: страницы, ещё не
-  // переехавшие, эту сессию не читают и продолжают работать как раньше.
   var SUPABASE_URL = "https://evqvzapbbtnfidvnhgxe.supabase.co";
   var SUPABASE_ANON_KEY = "sb_publishable_3ACYfKH82rtlVdt1olMHIA_GvP5KjYi";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -119,21 +114,11 @@ h1{font:700 30px/1.2 var(--font-heading);color:var(--it-teal-deep);margin:16px 0
   }
   var ВОЗВРАТ = безопасныйВозврат_(new URLSearchParams(location.search).get("return")) || СТРАНИЦА_МАТЕРИАЛОВ;
 
-  // Если вход уже подтверждён раньше (токен лежит в localStorage) — не
+  // Если вход уже подтверждён раньше (есть Supabase-сессия) — не
   // спрашиваем заново при каждом переходе на вкладку «Для талантов». Если
-  // токен успел протухнуть — целевая страница сама пошлёт сюда обратно.
+  // сессия успела протухнуть — целевая страница сама пошлёт сюда обратно.
   // Чтобы явно перелогиниться — ссылка на talent-gate.html?again=1.
   var СНОВА = new URLSearchParams(location.search).get("again") === "1";
-  if (!СНОВА) {
-    var естьВход = false;
-    try {
-      естьВход = !!(localStorage.getItem("iteal-session-token") && localStorage.getItem("iteal-talent-mail"));
-    } catch (e) {}
-    if (естьВход) {
-      location.replace(ВОЗВРАТ);
-      return;
-    }
-  }
 
   var $ = function (s) { return document.querySelector(s); };
 
@@ -150,48 +135,20 @@ h1{font:700 30px/1.2 var(--font-heading);color:var(--it-teal-deep);margin:16px 0
     r.innerHTML = html;
   }
 
-  function jsonp(params, ok, err, ms) {
-    var name = "__iteal_gate_" + Date.now() + "_" + Math.floor(Math.random() * 1e6);
-    var sc = document.createElement("script");
-    var done = false;
-    var tm = setTimeout(function () { fin(err, "нет ответа"); }, ms || 12000);
-    function fin(fn, arg) {
-      if (done) return; done = true; clearTimeout(tm);
-      try { delete window[name]; } catch (e) { window[name] = undefined; }
-      sc.remove(); if (fn) fn(arg);
-    }
-    window[name] = function (data) { fin(ok, data); };
-    sc.onerror = function () { fin(err, "нет доступа к адресу"); };
-    var qs = "callback=" + name;
-    Object.keys(params || {}).forEach(function (k) { qs += "&" + k + "=" + encodeURIComponent(params[k]); });
-    sc.src = SEND_URL + (SEND_URL.indexOf("?") < 0 ? "?" : "&") + qs + "&t=" + Date.now();
-    document.head.appendChild(sc);
-  }
-
   function onCredential_(resp) {
     showResult('<span class="spinner"></span>Проверяю вход…');
-    // Сессия для страниц на Supabase — не блокирует и не задерживает
-    // основной вход ниже; если сама Supabase недоступна, старый вход всё
-    // равно должен пройти как раньше.
-    try {
-      sb.auth.signInWithIdToken({ provider: "google", token: resp.credential, nonce: НОНС_СЫРОЙ })
-        .catch(function (e) { console.warn("Supabase-вход не удался:", e); });
-    } catch (e) { console.warn("Supabase-вход не удался:", e); }
-
-    jsonp({ action: "authVerify", payload: JSON.stringify({ idToken: resp.credential }) }, function (res) {
-      if (!res || res.ok === false) {
-        showResult('<p class="big">Не получилось войти</p><p>' + эк((res && res.error) || "неизвестная ошибка") + "</p>", "err");
+    var payload = { provider: "google", token: resp.credential };
+    if (НОНС_СЫРОЙ) payload.nonce = НОНС_СЫРОЙ;
+    sb.auth.signInWithIdToken(payload).then(function (res) {
+      if (res.error) {
+        showResult('<p class="big">Не получилось войти</p><p>' + эк(res.error.message) + "</p>", "err");
         return;
       }
-      try {
-        localStorage.setItem("iteal-session-token", res.token);
-        localStorage.setItem("iteal-talent-mail", res.mail);
-      } catch (e) {}
       showResult('<span class="spinner"></span>Открываю…');
       location.href = ВОЗВРАТ;
-    }, function (why) {
-      showResult('<p class="big">Не получилось войти</p><p>' + эк(why) + "</p>", "err");
-    }, 15000);
+    }, function (e) {
+      showResult('<p class="big">Не получилось войти</p><p>' + эк(e && e.message) + "</p>", "err");
+    });
   }
 
   function отрисоватьКнопку_(nonce) {
@@ -206,9 +163,7 @@ h1{font:700 30px/1.2 var(--font-heading);color:var(--it-teal-deep);margin:16px 0
   function initGoogle_() {
     if (!window.google || !google.accounts || !google.accounts.id) { setTimeout(initGoogle_, 150); return; }
     // При открытии страницы напрямую с диска (file://) WebCrypto может
-    // быть недоступен — тогда вход всё равно проходит, просто без nonce
-    // (Supabase-сессия в этом случае не заводится, но старый вход не
-    // страдает: он от WebCrypto не зависит).
+    // быть недоступен — тогда вход всё равно проходит, просто без nonce.
     if (!window.crypto || !crypto.subtle || !crypto.randomUUID) { отрисоватьКнопку_(null); return; }
     НОНС_СЫРОЙ = crypto.randomUUID();
     crypto.subtle.digest("SHA-256", new TextEncoder().encode(НОНС_СЫРОЙ)).then(function (buf) {
@@ -216,7 +171,18 @@ h1{font:700 30px/1.2 var(--font-heading);color:var(--it-teal-deep);margin:16px 0
       отрисоватьКнопку_(хэш);
     }, function () { отрисоватьКнопку_(null); });
   }
-  initGoogle_();
+
+  if (СНОВА) {
+    initGoogle_();
+  } else {
+    sb.auth.getSession().then(function (res) {
+      if (res.data && res.data.session) {
+        location.replace(ВОЗВРАТ);
+      } else {
+        initGoogle_();
+      }
+    });
+  }
 
   document.getElementById("toTop").addEventListener("click", function () {
     var rm = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;

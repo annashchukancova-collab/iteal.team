@@ -231,14 +231,9 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
   function itAlert_(message) {
     return itModal_({ message: message, isPrompt: false, showCancel: false, okText: "Понятно" });
   }
-  // Команда и Подрядчики теперь живут в Supabase (первая сущность,
-  // перенесённая с Google Sheets/Apps Script) — данные и права доступа
-  // (кто админ) проверяются там же. Оргструктура пока не перенесена
-  // (это отдельный, более сложный шаг миграции), поэтому подстановка
-  // ролей из неё (rolesForName_ ниже) на время переезда продолжает читать
-  // старый бэкенд напрямую — это только чтение, без входа, ничего не
-  // ломает и не требует токена.
-  var SEND_URL = "https://script.google.com/a/macros/iteal.expert/s/AKfycbyvNwCQIvoEIHytg18mItMlTpVbOEaijGxsjjCZ7om4jU7EsKH4DZtmh--FFVmtQrQPcw/exec";
+  // Команда, Подрядчики и Оргструктура теперь все живут в Supabase — данные
+  // и права доступа (кто админ) проверяются там же.
+  var ROOT_ID = "00000000-0000-0000-0000-000000000000";
   var SUPABASE_URL = "https://evqvzapbbtnfidvnhgxe.supabase.co";
   var SUPABASE_ANON_KEY = "sb_publishable_3ACYfKH82rtlVdt1olMHIA_GvP5KjYi";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -258,7 +253,7 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
     var target = String(name || "").trim().toLowerCase();
     if (!target) return [];
     return ORG_NODES.filter(function (n) {
-      return n.id !== "root" && (n.assignees || []).some(function (a) {
+      return n.id !== ROOT_ID && (n.assignees || []).some(function (a) {
         return String(a || "").trim().toLowerCase() === target;
       });
     }).map(function (n) { return n.name; });
@@ -268,25 +263,6 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
-  }
-
-  function jsonp(params, ok, err, ms) {
-    if (!SEND_URL) { err("адрес /exec ещё не вписан в SEND_URL"); return; }
-    var name = "__iteal_team_" + Date.now() + "_" + Math.floor(Math.random() * 1e6);
-    var sc = document.createElement("script");
-    var done = false;
-    var tm = setTimeout(function () { fin(err, "нет ответа"); }, ms || 12000);
-    function fin(fn, arg) {
-      if (done) return; done = true; clearTimeout(tm);
-      try { delete window[name]; } catch (e) { window[name] = undefined; }
-      sc.remove(); if (fn) fn(arg);
-    }
-    window[name] = function (data) { fin(ok, data); };
-    sc.onerror = function () { fin(err, "нет доступа к адресу"); };
-    var qs = "callback=" + name;
-    Object.keys(params || {}).forEach(function (k) { qs += "&" + k + "=" + encodeURIComponent(params[k]); });
-    sc.src = SEND_URL + (SEND_URL.indexOf("?") < 0 ? "?" : "&") + qs + "&t=" + Date.now();
-    document.head.appendChild(sc);
   }
 
   // Пустая строка в Supabase хранится как NULL, а не "" — так поля
@@ -548,19 +524,15 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
         return;
       }
       MEMBERS = (res.data || []).map(teamRowToMember_);
-      jsonp({ action: "orgList" }, function (orgRes) {
-        ORG_NODES = (orgRes && orgRes.nodes) || [];
+      sb.from("org_nodes").select("id, name, assignees").then(function (orgRes) {
+        // Оргструктура не загрузилась — показываем команду всё равно,
+        // просто без автоподстановки ролей (останется запасной вариант
+        // из поля "Роль").
+        ORG_NODES = (orgRes.data || []);
         document.getElementById("teamStatus").hidden = true;
         document.getElementById("teamTableWrap").hidden = false;
         renderTeam_();
-      }, function () {
-        /* Оргструктура не загрузилась — показываем команду всё равно,
-           просто без автоподстановки ролей (останется запасной вариант
-           из поля "Роль"). */
-        document.getElementById("teamStatus").hidden = true;
-        document.getElementById("teamTableWrap").hidden = false;
-        renderTeam_();
-      }, 15000);
+      });
     });
   }
 
@@ -783,16 +755,7 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
   /* Раньше по прямой ссылке (минуя talent-gate.html) страница всё равно
      показывала команду и подрядчиков — вход проверялся только для
      редактирования, а не для просмотра. Теперь без сессии сразу уводим
-     на вход, ничего не запрашивая и не показывая.
-
-     "?again=1" (а не просто "?return=…") — принципиально: у входа есть
-     старая проверка "уже входил раньше?" по старому токену
-     (iteal-session-token), который мог быть выдан ДО переезда этой
-     страницы на Supabase — тогда своей Supabase-сессии у человека ещё
-     нет, а старая проверка решит, что всё в порядке, и без "again=1"
-     тихо отправит его обратно сюда по кругу. "again=1" всегда показывает
-     кнопку входа заново — это стоит одного лишнего клика, но не даёт
-     зациклиться. */
+     на вход, ничего не запрашивая и не показывая. */
   async function bootstrap_() {
     var sess = await sb.auth.getSession();
     var session = sess && sess.data && sess.data.session;
