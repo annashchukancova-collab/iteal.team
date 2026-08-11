@@ -39,6 +39,9 @@ var WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbz3vUIaD50MyljcX3bepm
   function saveProfile(p) {
     try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); } catch (e) {}
   }
+  function clearProfile() {
+    try { localStorage.removeItem(PROFILE_KEY); } catch (e) {}
+  }
   function requireProfile() {
     var p = getProfile();
     if (!p) { window.location.href = "index.html"; return null; }
@@ -110,6 +113,10 @@ var WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbz3vUIaD50MyljcX3bepm
         '</div>';
       }).join("") +
       nextHtml +
+      // Показываем только если анкета уже заполнена — до этого её и менять
+      // нечего, сама форма и так на экране. Тот же смысл, что "Сменить
+      // почту" у входа "Для талантов", только без ухода со страницы.
+      (getProfile() ? '<a href="#" class="nav-trigger" id="nav-change-profile">Сменить почту</a>' : '') +
     '</nav>';
   }
   // \u041e\u0442\u043a\u0440\u044b\u0432\u0430\u0435\u0442/\u0437\u0430\u043a\u0440\u044b\u0432\u0430\u0435\u0442 \u0432\u044b\u043f\u0430\u0434\u0430\u044e\u0449\u0438\u0439 \u0441\u043f\u0438\u0441\u043e\u043a \u043f\u043e \u043a\u043b\u0438\u043a\u0443 \u043d\u0430 \u0435\u0433\u043e \u043a\u043d\u043e\u043f\u043a\u0443, \u0437\u0430\u043a\u0440\u044b\u0432\u0430\u0435\u0442
@@ -129,6 +136,19 @@ var WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbz3vUIaD50MyljcX3bepm
     document.addEventListener("click", function () {
       items.forEach(function (i) { i.classList.remove("open"); });
     });
+
+    // "Сменить почту" — очищаем сохранённую анкету и перезагружаем страницу,
+    // а не зовём render() самой страницы: у каждой страницы своя внутренняя
+    // логика рендера, а перезагрузка гарантированно приводит к чистому
+    // состоянию "анкеты нет" везде одинаково.
+    var changeProfileLink = document.getElementById("nav-change-profile");
+    if (changeProfileLink) {
+      changeProfileLink.addEventListener("click", function (e) {
+        e.preventDefault();
+        clearProfile();
+        location.reload();
+      });
+    }
   }
 
   // \u041e\u0431\u0449\u0430\u044f \u0430\u043d\u043a\u0435\u0442\u0430 \u0424\u0418\u041e/email \u2014 \u0440\u0430\u043d\u044c\u0448\u0435 \u0436\u0438\u043b\u0430 \u0442\u043e\u043b\u044c\u043a\u043e \u043d\u0430 \u0433\u043b\u0430\u0432\u043d\u043e\u0439, \u0442\u0435\u043f\u0435\u0440\u044c \u043b\u044e\u0431\u0430\u044f
