@@ -586,7 +586,7 @@ ul.plain li::before{content:"— "}
 
       var занятые = containers.map(function (c) {
         var dist = Math.max(Math.hypot(c.x - root.x, c.y - root.y), c.r);
-        return { angle: Math.atan2(c.y - root.y, c.x - root.x), half: Math.asin(Math.min(1, c.r / dist)) };
+        return { angle: Math.atan2(c.y - root.y, c.x - root.x), half: Math.asin(Math.min(1, c.r / dist)), dist: dist };
       }).sort(function (a, b) { return a.angle - b.angle; });
 
       var зазоры = [];
@@ -594,7 +594,7 @@ ul.plain li::before{content:"— "}
         var cur = занятые[i], next = занятые[(i + 1) % занятые.length];
         var from = cur.angle + cur.half;
         var to = next.angle - next.half + (i === занятые.length - 1 ? 2 * Math.PI : 0);
-        if (to > from) зазоры.push({ from: from, to: to });
+        if (to > from) зазоры.push({ from: from, to: to, ringDist: (cur.dist + next.dist) / 2 });
       }
       if (!зазоры.length) return;
       зазоры.sort(function (a, b) { return (b.to - b.from) - (a.to - a.from); });
@@ -610,9 +610,10 @@ ul.plain li::before{content:"— "}
         var slot = зазоры[i % зазоры.length];
         var angle = (slot.from + slot.to) / 2;
         var maxRadius = root.r - d.r - 6;
-        // Начинаем ближе к центру (к соседним кругам), а не у самого края —
-        // отодвигаем дальше только если иначе задели бы соседний круг.
-        var radius = maxRadius * 0.55;
+        // Начинаем на том же радиусе, где стоят сами соседние круги (там и
+        // рассчитан зазор между ними), а не у самого края корня — иначе на
+        // краю тот же угловой зазор превращается в огромный пустой сектор.
+        var radius = Math.max(d.r + 6, Math.min(slot.ringDist, maxRadius));
         var x, y;
         do {
           x = root.x + radius * Math.cos(angle);
