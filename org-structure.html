@@ -584,9 +584,23 @@ ul.plain li::before{content:"— "}
       });
       if (!loners.length || !containers.length) return;
 
+      // Подпись контейнера — одна строка у верхнего края круга — может
+      // выступать за пределы самого круга по бокам. Оцениваем этот выступ
+      // (как у layoutLabel_) и держим одиночку не от круга, а от этой,
+      // чуть большей, зоны — иначе роль наезжает на подпись.
+      containers.forEach(function (c) {
+        var layout = layoutLabel_(c.data.name, c.r, false);
+        var maxLen = 0;
+        (layout.lines || []).forEach(function (l) { maxLen = Math.max(maxLen, l.length); });
+        var half = maxLen * layout.fontSize * 0.56 / 2;
+        c.reach = Math.sqrt(c.r * c.r + half * half);
+      });
+
       var занятые = containers.map(function (c) {
         var dist = Math.max(Math.hypot(c.x - root.x, c.y - root.y), c.r);
-        return { angle: Math.atan2(c.y - root.y, c.x - root.x), half: Math.asin(Math.min(1, c.r / dist)), dist: dist };
+        // Угол зазора считаем от расширенной зоны (круг + подпись), иначе
+        // "свободный" угол на деле частично перекрыт подписью соседа.
+        return { angle: Math.atan2(c.y - root.y, c.x - root.x), half: Math.asin(Math.min(1, c.reach / dist)), dist: dist };
       }).sort(function (a, b) { return a.angle - b.angle; });
 
       var зазоры = [];
@@ -602,7 +616,7 @@ ul.plain li::before{content:"— "}
       var placed = [];
       function пересекается_(x, y, r) {
         return containers.concat(placed).some(function (o) {
-          return Math.hypot(x - o.x, y - o.y) < o.r + r + 8;
+          return Math.hypot(x - o.x, y - o.y) < (o.reach || o.r) + r + 8;
         });
       }
 
