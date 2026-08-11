@@ -540,11 +540,16 @@ function talentsPayload(results) {
   function sendTalentsWebhook(results) {
     if (!WEBHOOK_URL) return;
     try {
+      // Content-Type: text/plain, а не application/json — иначе браузер шлёт
+      // CORS-preflight (OPTIONS), а веб-приложение Apps Script его не
+      // обрабатывает, и запрос до doPost не доходит вообще (тихо, без
+      // видимой ошибки). doPost всё равно разбирает JSON из тела запроса
+      // через e.postData.contents — заголовок на это не влияет.
       fetch(WEBHOOK_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify(talentsPayload(results))
-      }).catch(function () { /* нет сети/CORS — результат всё равно виден кандидату */ });
+      }).catch(function () { /* нет сети — результат всё равно виден кандидату */ });
     } catch (e) { /* игнорируем: локальный отчёт важнее сетевой отправки */ }
   }
 

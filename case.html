@@ -78,11 +78,13 @@ function caseHtml() {
   function sendCaseWebhook() {
     if (!WEBHOOK_URL) return;
     try {
+      // text/plain, чтобы не вызвать CORS-preflight — см. подробное
+      // объяснение в talents.html рядом с тем же fetch.
       fetch(WEBHOOK_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify(casePayload())
-      }).catch(function () { /* нет сети/CORS — ответ всё равно виден кандидату */ });
+      }).catch(function () { /* нет сети — ответ всё равно виден кандидату */ });
     } catch (e) { /* игнорируем */ }
   }
 
