@@ -202,6 +202,22 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
   var SUPABASE_ANON_KEY = "sb_publishable_3ACYfKH82rtlVdt1olMHIA_GvP5KjYi";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+  // Тот же вебхук, что у теста талантов и маршрутных карт (google-apps-script.gs) —
+  // на новый отпуск сервер шлёт уведомление в Telegram (токен бота хранится
+  // в Свойствах скрипта, не здесь). Fire-and-forget: не блокирует сохранение
+  // и не мешает, если сеть/Apps Script недоступны.
+  var WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbz3vUIaD50MyljcX3bepmlba_psai6zbq9mnf15LP0IN9mdkbp21669nBzmiZp8Jsx0/exec";
+  function отправитьВТелеграм_(employee, start, end, comment) {
+    if (!WEBHOOK_URL) return;
+    try {
+      fetch(WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ kind: "vacation", employee: employee, start: fmtDate_(start), end: fmtDate_(end), comment: comment })
+      }).catch(function () {});
+    } catch (e) {}
+  }
+
   var ТЕКУЩАЯ_ПОЧТА = "";
   var ЭТО_АДМИН = false;
   var MEMBERS = [];
@@ -242,6 +258,7 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
             return;
         }
         if (r.error) { onDone(false, r.error.message); return; }
+        if (kind === "vacationAdd") отправитьВТелеграм_(payload.employee, payload.start, payload.end, payload.comment);
         onDone(true, r.data || {});
       } catch (e) {
         onDone(false, (e && e.message) || String(e));

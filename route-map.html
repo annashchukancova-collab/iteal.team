@@ -795,6 +795,22 @@ const SUPABASE_URL = "https://evqvzapbbtnfidvnhgxe.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_3ACYfKH82rtlVdt1olMHIA_GvP5KjYi";
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// Тот же вебхук/таблица, что и у теста талантов (shared.js) — сводка
+// прогресса по карте адаптации улетает туда же вторым, независимым от
+// Supabase каналом (kind: "routemap"), чтобы HR видел живую таблицу по
+// всем адаптациям без захода в Supabase.
+const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbz3vUIaD50MyljcX3bepmlba_psai6zbq9mnf15LP0IN9mdkbp21669nBzmiZp8Jsx0/exec";
+function отправитьВТаблицу_(фио, данные){
+  if(!WEBHOOK_URL || !фио) return;
+  try{
+    fetch(WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(Object.assign({ kind: 'routemap', фио }, данные))
+    }).catch(()=>{});
+  }catch(e){}
+}
+
 const hash = s => { let h = 5381; for(let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0; return h.toString(36); };
 const strip = s => String(s).replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
 const слово = (n, f) => { const a = Math.abs(n) % 100, b = a % 10;
@@ -847,6 +863,12 @@ async function отправитьНаСервер(){
   шлём = false;
   статус(!error ? 'сохранено и отправлено ' + new Date().toLocaleTimeString('ru-RU').slice(0,5)
             : 'сохранено локально, отправка не удалась — повторим на следующей отметке' + (error ? ' (' + error.message + ')' : ''), !error ? '' : 'err');
+
+  отправитьВТаблицу_(фио, {
+    role: пусто_(АНКЕТА.роль), mentor: пусто_(АНКЕТА.наставник), hired: пусто_(АНКЕТА.принят),
+    mail: пусто_(ПОЧТА), pct: с.pct, stepsDone: с.готово, stepsTotal: с.всего,
+    studyDone: с.учГот, studyTotal: с.учВсе, currentStep: пусто_(с.шаг), score: пусто_(с.балл)
+  });
 }
 
 window.addEventListener('beforeunload', e => {
