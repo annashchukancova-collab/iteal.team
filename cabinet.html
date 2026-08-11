@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@500;700&family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
 :root{
   --it-teal:#43836D; --it-teal-deep:#2C5748; --it-mint:#7AC1A8; --it-accent:#FFD54F;
@@ -93,18 +94,14 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
 (function () {
   "use strict";
 
-  var SEND_URL = "https://script.google.com/a/macros/iteal.expert/s/AKfycbyvNwCQIvoEIHytg18mItMlTpVbOEaijGxsjjCZ7om4jU7EsKH4DZtmh--FFVmtQrQPcw/exec";
+  var SUPABASE_URL = "https://evqvzapbbtnfidvnhgxe.supabase.co";
+  var SUPABASE_ANON_KEY = "sb_publishable_3ACYfKH82rtlVdt1olMHIA_GvP5KjYi";
+  var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  /* Почта сама по себе больше ничего не доказывает — её мог вписать кто
-     угодно. Настоящее подтверждение личности — токен, который выдаёт
-     сервер после входа через Google (talent-gate.html); без него почта
-     не считается подтверждённой, даже если когда-то была сохранена. */
-  var ТЕКУЩИЙ_ТОКЕН = (function () {
-    try { return (localStorage.getItem("iteal-session-token") || "").trim(); } catch (e) { return ""; }
-  })();
-  var ТЕКУЩАЯ_ПОЧТА = ТЕКУЩИЙ_ТОКЕН ? (function () {
-    try { return (localStorage.getItem("iteal-talent-mail") || "").trim().toLowerCase(); } catch (e) { return ""; }
-  })() : "";
+  // Тот же зарезервированный uuid корня, что и в org-structure.html/role.html.
+  var ROOT_ID = "00000000-0000-0000-0000-000000000000";
+
+  var ТЕКУЩАЯ_ПОЧТА = "";
 
   var $ = function (s) { return document.querySelector(s); };
   function эк(s) {
@@ -113,23 +110,10 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     });
   }
 
-  function jsonp(params, ok, err, ms) {
-    if (!SEND_URL) { err("адрес /exec ещё не вписан в SEND_URL"); return; }
-    var name = "__iteal_cab_" + Date.now() + "_" + Math.floor(Math.random() * 1e6);
-    var sc = document.createElement("script");
-    var done = false;
-    var tm = setTimeout(function () { fin(err, "нет ответа"); }, ms || 12000);
-    function fin(fn, arg) {
-      if (done) return; done = true; clearTimeout(tm);
-      try { delete window[name]; } catch (e) { window[name] = undefined; }
-      sc.remove(); if (fn) fn(arg);
-    }
-    window[name] = function (data) { fin(ok, data); };
-    sc.onerror = function () { fin(err, "нет доступа к адресу"); };
-    var qs = "callback=" + name;
-    Object.keys(params || {}).forEach(function (k) { qs += "&" + k + "=" + encodeURIComponent(params[k]); });
-    sc.src = SEND_URL + (SEND_URL.indexOf("?") < 0 ? "?" : "&") + qs + "&t=" + Date.now();
-    document.head.appendChild(sc);
+  // Поля из Supabase (parent_id) приводим к тому же имени, что было в
+  // ответе старого orgList (parent) — render() ниже написан под это имя.
+  function orgRowToNode_(r) {
+    return { id: r.id, parent: r.parent_id, name: r.name, assignees: r.assignees || [] };
   }
 
   /* "Исполнители"/"Лидер круга" теперь хранят ИМЯ из таблицы "Команда"
@@ -146,40 +130,29 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
   }
 
   function load() {
-    if (!ТЕКУЩАЯ_ПОЧТА) {
-      $("#status").innerHTML = 'Сначала укажите рабочую почту через <a href="talent-gate.html?again=1">вход для талантов</a> — кабинет собирается по ней.';
-      $("#status").className = "status err";
-      return;
-    }
-    jsonp({ action: "teamList" }, function (teamRes) {
-      if (!teamRes || teamRes.ok === false) {
-        $("#status").textContent = "Не получилось загрузить «Команду»: " + ((teamRes && teamRes.error) || "нет ответа") + ".";
+    sb.from("team_members").select("name, work_mail").then(function (teamRes) {
+      if (teamRes.error) {
+        $("#status").textContent = "Не получилось загрузить «Команду»: " + teamRes.error.message + ".";
         $("#status").className = "status err";
         return;
       }
-      var me = (teamRes.members || []).filter(function (m) {
-        return String(m.mail || "").trim().toLowerCase() === ТЕКУЩАЯ_ПОЧТА;
+      var me = (teamRes.data || []).filter(function (m) {
+        return String(m.work_mail || "").trim().toLowerCase() === ТЕКУЩАЯ_ПОЧТА;
       })[0];
       if (!me) {
         $("#status").innerHTML = 'Ваша почта не найдена во <a href="talent-hub.html">вкладке «Команда»</a> — попросите админа добавить вас туда, тогда кабинет сможет показать ваши роли.';
         $("#status").className = "status err";
         return;
       }
-      jsonp({ action: "orgList" }, function (res) {
-        if (!res || res.ok === false) {
-          $("#status").textContent = "Не получилось загрузить структуру: " + ((res && res.error) || "нет ответа") + ".";
+      sb.from("org_nodes").select("id, parent_id, name, assignees").then(function (res) {
+        if (res.error) {
+          $("#status").textContent = "Не получилось загрузить структуру: " + res.error.message + ".";
           $("#status").className = "status err";
           return;
         }
-        render(res.nodes || [], me.name);
-      }, function (why) {
-        $("#status").textContent = "Нет связи с сервером: " + why + ".";
-        $("#status").className = "status err";
-      }, 15000);
-    }, function (why) {
-      $("#status").textContent = "Нет связи с сервером: " + why + ".";
-      $("#status").className = "status err";
-    }, 15000);
+        render((res.data || []).map(orgRowToNode_), me.name);
+      });
+    });
   }
 
   function render(nodes, myName) {
@@ -192,8 +165,8 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     var roles = [];
     var circles = [];
     nodes.forEach(function (n) {
-      if (n.id === "root" || !isMe_(n.assignees, myName)) return;
-      (n.id !== "root" && isLeaf[n.id] ? roles : circles).push(n);
+      if (n.id === ROOT_ID || !isMe_(n.assignees, myName)) return;
+      (n.id !== ROOT_ID && isLeaf[n.id] ? roles : circles).push(n);
     });
 
     function pathOf(n) {
@@ -236,12 +209,20 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
 
   /* Раньше по прямой ссылке (минуя talent-gate.html) страница показывала
      сообщение "сначала войдите", но сам кабинет всё равно был открыт как
-     страница. Теперь без токена сразу уводим на вход. */
-  if (!ТЕКУЩИЙ_ТОКЕН) {
-    location.replace("talent-gate.html?return=" + encodeURIComponent(location.pathname + location.search));
-  } else {
+     страница. Теперь без сессии сразу уводим на вход. "again=1" — см.
+     подробное объяснение в team.html: без него человек со старой (ещё не
+     Supabase) сессией зациклился бы между этой страницей и входом. */
+  async function bootstrap_() {
+    var sess = await sb.auth.getSession();
+    var session = sess && sess.data && sess.data.session;
+    if (!session) {
+      location.replace("talent-gate.html?again=1&return=" + encodeURIComponent(location.pathname + location.search));
+      return;
+    }
+    ТЕКУЩАЯ_ПОЧТА = String(session.user.email || "").trim().toLowerCase();
     load();
   }
+  bootstrap_();
 })();
 </script>
 </body>

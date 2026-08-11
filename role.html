@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@500;700&family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/d3@7"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
 :root{
   --it-teal:#43836D; --it-teal-deep:#2C5748; --it-mint:#7AC1A8; --it-accent:#FFD54F;
@@ -371,25 +372,17 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     return itModal_({ message: message, isPrompt: false, showCancel: false, okText: "Понятно" });
   }
 
-  var SEND_URL = "https://script.google.com/a/macros/iteal.expert/s/AKfycbyvNwCQIvoEIHytg18mItMlTpVbOEaijGxsjjCZ7om4jU7EsKH4DZtmh--FFVmtQrQPcw/exec";
+  var SUPABASE_URL = "https://evqvzapbbtnfidvnhgxe.supabase.co";
+  var SUPABASE_ANON_KEY = "sb_publishable_3ACYfKH82rtlVdt1olMHIA_GvP5KjYi";
+  var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  var АДМИНЫ = [
-    "anna.shchukancova@iteal.expert",
-    "pavel.stupko@iteal.expert",
-    "galina.marushevskaia@iteal.expert",
-    "anastasiia.edakina@iteal.expert"
-  ];
-  /* Почта сама по себе больше ничего не доказывает — её мог вписать кто
-     угодно. Настоящее подтверждение личности — токен, который выдаёт
-     сервер после входа через Google (talent-gate.html); без него почта
-     не считается подтверждённой, даже если когда-то была сохранена. */
-  var ТЕКУЩИЙ_ТОКЕН = (function () {
-    try { return (localStorage.getItem("iteal-session-token") || "").trim(); } catch (e) { return ""; }
-  })();
-  var ТЕКУЩАЯ_ПОЧТА = ТЕКУЩИЙ_ТОКЕН ? (function () {
-    try { return (localStorage.getItem("iteal-talent-mail") || "").trim().toLowerCase(); } catch (e) { return ""; }
-  })() : "";
-  var ЭТО_АДМИН = АДМИНЫ.indexOf(ТЕКУЩАЯ_ПОЧТА) !== -1;
+  // Раньше корень дерева был строкой "root" — в Postgres id это настоящий
+  // uuid, поэтому корень — просто зарезервированное фиксированное значение
+  // (то же самое, что в org-structure.html).
+  var ROOT_ID = "00000000-0000-0000-0000-000000000000";
+
+  var ТЕКУЩАЯ_ПОЧТА = "";
+  var ЭТО_АДМИН = false;
 
   var ID = new URLSearchParams(location.search).get("id") || "";
   var CURRENT = null;
@@ -426,52 +419,98 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     return (el.textContent || "").trim();
   }
 
-  function jsonp(params, ok, err, ms) {
-    if (!SEND_URL) { err("адрес /exec ещё не вписан в SEND_URL"); return; }
-    var name = "__iteal_role_" + Date.now() + "_" + Math.floor(Math.random() * 1e6);
-    var sc = document.createElement("script");
-    var done = false;
-    var tm = setTimeout(function () { fin(err, "нет ответа"); }, ms || 12000);
-    function fin(fn, arg) {
-      if (done) return; done = true; clearTimeout(tm);
-      try { delete window[name]; } catch (e) { window[name] = undefined; }
-      sc.remove(); if (fn) fn(arg);
-    }
-    window[name] = function (data) { fin(ok, data); };
-    sc.onerror = function () { fin(err, "нет доступа к адресу"); };
-    var qs = "callback=" + name;
-    Object.keys(params || {}).forEach(function (k) { qs += "&" + k + "=" + encodeURIComponent(params[k]); });
-    sc.src = SEND_URL + (SEND_URL.indexOf("?") < 0 ? "?" : "&") + qs + "&t=" + Date.now();
-    document.head.appendChild(sc);
-  }
+  // Пустая строка в Supabase хранится как NULL, а не "".
+  function пусто_(v) { v = (v == null ? "" : String(v)).trim(); return v === "" ? null : v; }
+  function список_(v) { return Array.isArray(v) ? v : []; }
 
+  // Единая точка входа для всех действий над деревом — та же сигнатура
+  // (kind, payload, onDone), что была у версии на jsonp, поэтому весь код
+  // ниже, который её вызывает, менять не пришлось.
   function orgAction(kind, payload, onDone) {
     payload = payload || {};
-    payload.mail = ТЕКУЩАЯ_ПОЧТА;
-    payload.token = ТЕКУЩИЙ_ТОКЕН;
-    jsonp({ action: kind, payload: JSON.stringify(payload) }, function (res) {
-      if (!res || res.ok === false) { onDone(false, (res && res.error) || "нет ответа"); return; }
-      if (res._action !== undefined && res._action !== kind) {
-        onDone(false, "сервер не выполнил «" + kind + "» — похоже, развёрнута старая версия Маршрутные-карты.gs");
-        return;
+    (async function () {
+      try {
+        var r;
+        switch (kind) {
+          case "orgAddNode":
+            r = await sb.from("org_nodes").insert({
+              parent_id: payload.parent, name: payload.name, is_circle: !!payload.isCircle
+            }).select().single();
+            if (!r.error) {
+              await sb.from("org_history").insert({ node_id: r.data.id, mail: ТЕКУЩАЯ_ПОЧТА, label: "Создано" });
+            }
+            break;
+          case "orgUpdateFields":
+            r = await sb.from("org_nodes").update({
+              name: payload.name, purpose: пусто_(payload.purpose),
+              domains: список_(payload.domains), accountabilities: список_(payload.accountabilities),
+              notes: пусто_(payload.notes), assignees: список_(payload.assignees),
+              policies: список_(payload.policies), projects: список_(payload.projects),
+              checklist: список_(payload.checklist), goals: список_(payload.goals),
+              metrics: список_(payload.metrics), attachments: список_(payload.attachments),
+              photo: payload.photo !== undefined ? пусто_(payload.photo) : undefined
+            }).eq("id", payload.id);
+            if (!r.error) {
+              await sb.from("org_history").insert({ node_id: payload.id, mail: ТЕКУЩАЯ_ПОЧТА, label: payload.changeLabel || "Изменено" });
+            }
+            break;
+          case "orgReparent":
+            r = await sb.from("org_nodes").update({ parent_id: payload.parent }).eq("id", payload.id);
+            if (!r.error) {
+              await sb.from("org_history").insert({ node_id: payload.id, mail: ТЕКУЩАЯ_ПОЧТА, label: "Перемещено" });
+            }
+            break;
+          case "orgDelete":
+            r = await sb.from("org_nodes").delete().eq("id", payload.id);
+            break;
+          default:
+            onDone(false, "неизвестное действие: " + kind);
+            return;
+        }
+        if (r.error) { onDone(false, r.error.message); return; }
+        onDone(true, r.data || {});
+      } catch (e) {
+        onDone(false, (e && e.message) || String(e));
       }
-      onDone(true, res);
-    }, function (why) { onDone(false, why); }, 15000);
+    })();
   }
 
-  /* Имена из таблицы "Команда" (talent-hub.html) — чтобы исполнителей роли
-     выбирали из реальных людей, а не вписывали текст руками. Грузим не
-     дожидаясь основной orgList: к моменту, когда админ реально откроет
-     редактирование, список почти наверняка уже придёт. Если нет — просто
-     покажется как временно пустой, ничего не ломается. */
+  /* Имена из таблицы "Команда" — чтобы исполнителей роли выбирали из
+     реальных людей, а не вписывали текст руками. Грузим не дожидаясь
+     основной оргструктуры: к моменту, когда админ реально откроет
+     редактирование, список почти наверняка уже придёт. */
   var TEAM_NAMES = [];
   function loadTeamNames_() {
-    jsonp({ action: "teamList" }, function (res) {
-      TEAM_NAMES = ((res && res.ok !== false && res.members) || [])
+    sb.from("team_members").select("name").then(function (res) {
+      TEAM_NAMES = ((res && res.data) || [])
         .map(function (m) { return String(m.name || "").trim(); })
         .filter(Boolean)
         .sort(function (a, b) { return a.localeCompare(b, "ru"); });
-    }, function () { /* тихо — это вспомогательные данные, не критично */ }, 12000);
+    });
+  }
+
+  // Поля из Supabase (parent_id/updated_at/updated_by) приводим к тем же
+  // именам, что были в ответе старого orgList (parent/updatedAt/updatedBy) —
+  // весь код ниже написан под эти имена, трогать его не пришлось.
+  function orgRowToNode_(r) {
+    return {
+      id: r.id, parent: r.parent_id, name: r.name, purpose: r.purpose,
+      domains: r.domains || [], accountabilities: r.accountabilities || [], notes: r.notes,
+      assignees: r.assignees || [], updatedAt: r.updated_at, updatedBy: r.updated_by,
+      photo: r.photo, policies: r.policies || [], projects: r.projects || [],
+      checklist: r.checklist || [], goals: r.goals || [], metrics: r.metrics || [],
+      attachments: r.attachments || [], isCircle: !!r.is_circle
+    };
+  }
+
+  // История теперь отдельная таблица (org_history), а не поле на самом
+  // узле — грузится отдельным запросом, отсортованным от новых к старым.
+  var CURRENT_HISTORY = [];
+  function loadHistory_(nodeId) {
+    sb.from("org_history").select("*").eq("node_id", nodeId).order("created_at", { ascending: false }).then(function (res) {
+      CURRENT_HISTORY = (res && res.data) || [];
+      if (CURRENT) buildCard_(CURRENT);
+    });
   }
 
   function load() {
@@ -481,29 +520,28 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       $("#status").className = "status err";
       return;
     }
-    jsonp({ action: "orgList" }, function (res) {
-      if (!res || res.ok === false) {
-        $("#status").textContent = "Не получилось загрузить данные: " + ((res && res.error) || "нет ответа") + ".";
+    sb.from("org_nodes").select("*").then(function (res) {
+      if (res.error) {
+        $("#status").textContent = "Не получилось загрузить данные: " + res.error.message + ".";
         $("#status").className = "status err";
         return;
       }
-      var node = (res.nodes || []).filter(function (n) { return n.id === ID; })[0];
+      var nodes = (res.data || []).map(orgRowToNode_);
+      var node = nodes.filter(function (n) { return n.id === ID; })[0];
       if (!node) {
         $("#status").textContent = "Роль с таким адресом не найдена — возможно, её удалили.";
         $("#status").className = "status err";
         return;
       }
       CURRENT = node;
-      buildIndex_(res.nodes || []);
+      buildIndex_(nodes);
       $("#status").hidden = true;
       $("#layout").hidden = false;
       buildCard_(CURRENT);
       buildMinimap_();
       buildSiblings_();
-    }, function (why) {
-      $("#status").textContent = "Нет связи с сервером: " + why + ".";
-      $("#status").className = "status err";
-    }, 15000);
+      loadHistory_(ID);
+    });
   }
 
   /* Одно сохранение разом — по кнопке "Сохранить", а не на каждый blur.
@@ -539,9 +577,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
         CURRENT = Object.assign({}, CURRENT, payload);
         CURRENT.updatedAt = new Date().toLocaleString("ru-RU");
         CURRENT.updatedBy = ТЕКУЩАЯ_ПОЧТА;
-        CURRENT.history = (CURRENT.history || []).concat([
-          [new Date().toISOString(), ТЕКУЩАЯ_ПОЧТА, "Изменено"].join(РАЗД)
-        ]);
+        CURRENT_HISTORY.unshift({ created_at: new Date().toISOString(), mail: ТЕКУЩАЯ_ПОЧТА, label: "Изменено" });
       } else {
         itAlert_("Не сохранилось: " + resOrWhy);
       }
@@ -676,7 +712,13 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     { key: "history", label: "История" }
   ];
 
-  function isCircleId_(id) { return id.indexOf("c-") === 0; }
+  // Раньше признаком круга был префикс "c-" в ID; теперь ID — настоящий
+  // uuid без префикса, поэтому смотрим на явный флаг is_circle (плюс на
+  // всякий случай — есть ли уже дети, вдруг флаг почему-то не проставлен).
+  function isCircleId_(id) {
+    var n = ALL_NODES[id];
+    return !!(n && (n.isCircle || !isLeaf_(id)));
+  }
 
   /* Один документ, который прокручивается целиком, с оглавлением сбоку —
      вместо вкладок в стиле приложения. Оглавление и якоря собираются из
@@ -694,7 +736,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       checklist: '<p class="kicker mb">Чеклисты</p>' + checklistHtml_(n, editing),
       goals: listSectionHtml_("goals", n.goals || [], editing),
       metrics: metricsHtml_(n, editing),
-      history: '<p class="kicker mb">История</p>' + historyHtml_(n)
+      history: '<p class="kicker mb">История</p>' + historyHtml_(CURRENT_HISTORY)
     };
     var html =
       '<div class="titlebar"><p class="kicker">' + (isCircle ? "Круг в iTeal" : "Роль в iTeal") + "</p>" +
@@ -703,7 +745,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
           '<div class="pencilmenu" id="pencilMenu">' +
           '<button type="button" data-action="edit">Редактировать</button>' +
           (isCircle ? '<button type="button" data-action="addrole">+ Роль</button>' : "") +
-          (ID !== "root"
+          (ID !== ROOT_ID
             ? '<select id="moveSelect" data-action="move"><option value="">Переместить в…</option>' + moveOptionsHtml_() + "</select>"
             : "") +
           '<button type="button" data-action="delete">Удалить</button>' +
@@ -792,14 +834,10 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
       var name = await itPrompt_("Название новой роли:");
       name = (name || "").trim();
       if (!name) return;
-      /* Префикс "r-" — тот же приём, что и в org-structure.html: тип узла
-         обычно вычисляется по наличию детей, а у свежесозданной роли их
-         пока (и никогда, по смыслу) нет, поэтому явный префикс в ID нужен,
-         чтобы role.html точно знал, что перед ним роль, а не пустой круг. */
-      var id = "r-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-      orgAction("orgAddNode", { id: id, parent: ID, name: name }, function (ok, resOrWhy) {
+      // isCircle не передаём — по умолчанию false, это всегда роль.
+      orgAction("orgAddNode", { parent: ID, name: name }, function (ok, resOrWhy) {
         if (!ok) { itAlert_("Не получилось: " + resOrWhy); return; }
-        window.open("role.html?id=" + encodeURIComponent(id), "_blank");
+        window.open("role.html?id=" + encodeURIComponent(resOrWhy.id), "_blank");
         load();
       });
     });
@@ -1259,20 +1297,21 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
 
   /* ---- история: реальный, но ограниченный журнал (последние 50 записей) ---- */
 
-  function historyHtml_(n) {
-    var lines = (n.history || []).slice().reverse();
-    if (!lines.length) {
+  // Журнал теперь отдельная таблица (org_history) без потолка в 50 записей —
+  // строки уже приходят объектами {created_at, mail, label}, не строкой с
+  // разделителем \x1F.
+  function historyHtml_(rows) {
+    if (!rows.length) {
       return '<div class="hist"><p class="empty-hint">Изменений ещё не было</p></div>';
     }
-    var rows = lines.map(function (line) {
-      var parts = line.split(РАЗД);
-      var when = fmtHistoryDate_(parts[0]);
-      var who = parts[1] || "";
-      var what = parts[2] || "Изменено";
+    var html = rows.map(function (row) {
+      var when = fmtHistoryDate_(row.created_at);
+      var who = row.mail || "";
+      var what = row.label || "Изменено";
       return '<div class="histrow"><b>' + эк(what) + "</b><span>" + эк(when) + (who ? " · " + эк(who) : "") + "</span></div>";
     }).join("");
-    return '<div class="hist"><div class="histlist">' + rows + "</div>" +
-      '<p class="note">Показаны последние ' + lines.length + " запис" + (lines.length === 1 ? "ь" : lines.length < 5 ? "и" : "ей") + " — журнал хранит не более 50.</p></div>";
+    return '<div class="hist"><div class="histlist">' + html + "</div>" +
+      '<p class="note">Записей в журнале: ' + rows.length + '.</p></div>';
   }
 
   function fmtHistoryDate_(iso) {
@@ -1322,14 +1361,14 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
 
   function goToNode_(id) {
     if (id === ID) return;
-    if (id !== "root" && isLeaf_(id)) location.href = "role.html?id=" + encodeURIComponent(id);
+    if (id !== ROOT_ID && isLeaf_(id)) location.href = "role.html?id=" + encodeURIComponent(id);
     else location.href = "org-structure.html?focus=" + encodeURIComponent(id);
   }
 
   function buildMinimap_() {
-    if (!ALL_NODES.root) return;
+    if (!ALL_NODES[ROOT_ID]) return;
     var W = 300, H = 300;
-    var root = d3.hierarchy(toHierarchy_("root"), function (d) { return d.children; }).count();
+    var root = d3.hierarchy(toHierarchy_(ROOT_ID), function (d) { return d.children; }).count();
     var pack = d3.pack().size([W - 6, H - 6]).padding(function (d) { return d.depth === 0 ? 3 : 7; });
     pack(root);
     root.descendants().forEach(function (d) {
@@ -1348,7 +1387,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     svg.appendChild(g);
 
     root.descendants().forEach(function (d) {
-      var leaf = d.data.id !== "root" && isLeaf_(d.data.id);
+      var leaf = d.data.id !== ROOT_ID && isLeaf_(d.data.id);
       var filled = leaf && (ALL_NODES[d.data.id].assignees || []).length > 0;
       var kind = leaf ? (filled ? "leaf-filled" : "leaf-empty") : (d.depth === 0 ? "root" : "container");
       var c = document.createElementNS(ns, "circle");
@@ -1433,7 +1472,7 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
     if (!parent || !siblingIds.length) { box.innerHTML = ""; return; }
     var rows = siblingIds.map(function (sid) {
       var s = ALL_NODES[sid];
-      var href = (sid !== "root" && isLeaf_(sid)) ? "role.html?id=" + encodeURIComponent(sid) : "org-structure.html?focus=" + encodeURIComponent(sid);
+      var href = (sid !== ROOT_ID && isLeaf_(sid)) ? "role.html?id=" + encodeURIComponent(sid) : "org-structure.html?focus=" + encodeURIComponent(sid);
       return '<a href="' + href + '"' + (sid === ID ? ' class="current"' : "") + ">" + эк(s.name) + "</a>";
     }).join("");
     box.innerHTML = '<h3>' + эк(parent.name) + "</h3>" + rows;
@@ -1446,13 +1485,23 @@ footer{margin:48px 0 0;padding-top:16px;border-top:1px solid var(--it-line);font
 
   /* Раньше по прямой ссылке (минуя talent-gate.html) страница всё равно
      подгружала и показывала роль целиком — вход проверялся только для
-     редактирования, а не для просмотра. Теперь без токена сразу уводим
-     на вход, ничего не запрашивая и не показывая. */
-  if (!ТЕКУЩИЙ_ТОКЕН) {
-    location.replace("talent-gate.html?return=" + encodeURIComponent(location.pathname + location.search));
-  } else {
+     редактирования, а не для просмотра. Теперь без сессии сразу уводим
+     на вход, ничего не запрашивая и не показывая. "again=1" — см.
+     подробное объяснение в team.html: без него человек со старой (ещё не
+     Supabase) сессией зациклился бы между этой страницей и входом. */
+  async function bootstrap_() {
+    var sess = await sb.auth.getSession();
+    var session = sess && sess.data && sess.data.session;
+    if (!session) {
+      location.replace("talent-gate.html?again=1&return=" + encodeURIComponent(location.pathname + location.search));
+      return;
+    }
+    ТЕКУЩАЯ_ПОЧТА = String(session.user.email || "").trim().toLowerCase();
+    var prof = await sb.from("profiles").select("is_admin").eq("id", session.user.id).single();
+    ЭТО_АДМИН = !!(prof.data && prof.data.is_admin);
     load();
   }
+  bootstrap_();
 })();
 </script>
 </body>
