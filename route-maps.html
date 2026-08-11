@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Маршрутные карты — iTeal</title>
 <link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;500;700&family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
 :root{
   --it-teal:#43836D; --it-teal-deep:#2C5748; --it-mint:#7AC1A8; --it-accent:#FFD54F;
@@ -265,7 +266,9 @@ h1{font:700 32px/1.15 var(--font-heading);color:var(--it-teal-deep);margin:16px 
     return itModal_({ message: message, isPrompt: false, showCancel: false, okText: "Понятно" });
   }
 
-  var SEND_URL = "https://script.google.com/a/macros/iteal.expert/s/AKfycbyvNwCQIvoEIHytg18mItMlTpVbOEaijGxsjjCZ7om4jU7EsKH4DZtmh--FFVmtQrQPcw/exec";  // адрес /exec нового Apps Script — см. Маршрутные-карты.gs
+  var SUPABASE_URL = "https://evqvzapbbtnfidvnhgxe.supabase.co";
+  var SUPABASE_ANON_KEY = "sb_publishable_3ACYfKH82rtlVdt1olMHIA_GvP5KjYi";
+  var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
@@ -273,89 +276,58 @@ h1{font:700 32px/1.15 var(--font-heading);color:var(--it-teal-deep);margin:16px 
     return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
   }); };
 
-  var HINT = 'Что проверить: 1) в route-maps.html и route-map.html вписан один и тот же адрес /exec; ' +
-    '2) в Apps Script сделано «Развернуть → Управление развёртываниями → карандаш → Версия: Новая → Развернуть»; ' +
-    '3) доступ у развёртывания — «У кого есть доступ: Все пользователи»; 4) один раз запущена функция <code>подготовка</code>.';
-
   var ALL_CARDS = [];
   var TAB = "active";
 
-  var АДМИНЫ = [
-    "anna.shchukancova@iteal.expert",
-    "pavel.stupko@iteal.expert",
-    "galina.marushevskaia@iteal.expert",
-    "anastasiia.edakina@iteal.expert"
-  ];
-  /* Почта сама по себе больше ничего не доказывает — её мог вписать кто
-     угодно. Настоящее подтверждение личности — токен, который выдаёт
-     сервер после входа через Google (talent-gate.html); без него почта
-     не считается подтверждённой, даже если когда-то была сохранена. */
-  var ТЕКУЩИЙ_ТОКЕН = (function () {
-    try { return (localStorage.getItem("iteal-session-token") || "").trim(); } catch (e) { return ""; }
-  })();
-  var ТЕКУЩАЯ_ПОЧТА = ТЕКУЩИЙ_ТОКЕН ? (function () {
-    try { return (localStorage.getItem("iteal-talent-mail") || "").trim().toLowerCase(); } catch (e) { return ""; }
-  })() : "";
-  var ЭТО_АДМИН = АДМИНЫ.indexOf(ТЕКУЩАЯ_ПОЧТА) !== -1;
+  var ТЕКУЩАЯ_ПОЧТА = "";
+  var ЭТО_АДМИН = false;
 
-  if (!ЭТО_АДМИН) {
-    // не-админ управляет только своей картой: ни создавать чужие, ни удалять её нельзя
-    // не .hidden — у .btn в стилях явно задан display, и он перебивает
-    // стандартное [hidden]{display:none} браузера (авторские стили всегда
-    // сильнее агентских, вне зависимости от специфичности)
-    $("#bNew").style.display = "none";
-  }
-
-  // видно, под кем сейчас смотрится список — если почта не запомнилась
-  // (например, страница открыта напрямую, минуя вход по почте), это не
-  // «карта пропала», а просто список показан не под тем человеком
-  (function () {
+  // не-админ управляет только своей картой: ни создавать чужие, ни удалять
+  // её нельзя — не .hidden — у .btn в стилях явно задан display, и он
+  // перебивает стандартное [hidden]{display:none} браузера (авторские
+  // стили всегда сильнее агентских, вне зависимости от специфичности).
+  function renderWhoami_() {
+    $("#bNew").style.display = ЭТО_АДМИН ? "" : "none";
     var el = $("#whoami");
-    if (!ТЕКУЩАЯ_ПОЧТА) {
-      el.innerHTML = 'Вы зашли без входа по почте — виден пустой список для «никого». <a href="talent-gate.html">Войти по рабочей почте →</a>';
-    } else {
-      el.innerHTML = 'Вы: <b>' + эк(ТЕКУЩАЯ_ПОЧТА) + '</b>' + (ЭТО_АДМИН ? ' (админ, виден весь список)' : ' (виден только ваш список)') +
-        ' · <a href="talent-gate.html?again=1">сменить →</a>';
-    }
-  })();
-
-  function jsonp(params, ok, err, ms) {
-    if (!SEND_URL) { err("адрес /exec ещё не вписан в SEND_URL"); return; }
-    var name = "__iteal_rm_" + Date.now() + "_" + Math.floor(Math.random() * 1e6);
-    var sc = document.createElement("script");
-    var done = false;
-    var tm = setTimeout(function () { fin(err, "нет ответа"); }, ms || 12000);
-    function fin(fn, arg) {
-      if (done) return; done = true; clearTimeout(tm);
-      try { delete window[name]; } catch (e) { window[name] = undefined; }
-      sc.remove(); if (fn) fn(arg);
-    }
-    window[name] = function (data) { fin(ok, data); };
-    sc.onerror = function () { fin(err, "нет доступа к адресу"); };
-    var qs = "callback=" + name;
-    Object.keys(params || {}).forEach(function (k) { qs += "&" + k + "=" + encodeURIComponent(params[k]); });
-    sc.src = SEND_URL + (SEND_URL.indexOf("?") < 0 ? "?" : "&") + qs + "&t=" + Date.now();
-    document.head.appendChild(sc);
+    el.innerHTML = 'Вы: <b>' + эк(ТЕКУЩАЯ_ПОЧТА) + '</b>' + (ЭТО_АДМИН ? ' (админ, виден весь список)' : ' (виден только ваш список)') +
+      ' · <a href="talent-gate.html?again=1">сменить →</a>';
   }
 
-  // GET + JSONP, не POST: /exec у Apps Script всегда редиректит на
-  // script.googleusercontent.com, а браузер при редиректе превращает POST
-  // в GET и теряет тело запроса — доходило "успешно", но пустым. У GET
-  // тело не нужно, все данные едут прямо в адресе, редирект их не теряет.
+  // Пустая строка в Supabase хранится как NULL, а не "".
+  function пусто_(v) { v = (v == null ? "" : String(v)).trim(); return v === "" ? null : v; }
+
+  // Единая точка входа для действий над картами — та же сигнатура
+  // (payload с kind, onDone), что была у версии на jsonp.
   function postAction(payload, onDone) {
-    if (!SEND_URL) { onDone(false, "адрес /exec ещё не вписан"); return; }
-    payload.token = ТЕКУЩИЙ_ТОКЕН;
-    jsonp({ action: payload.kind, payload: JSON.stringify(payload) }, function (res) {
-      if (!res || res.ok === false) { onDone(false, (res && res.error) || "нет ответа"); return; }
-      // сервер эхом присылает, какое действие он реально выполнил — если оно не
-      // совпадает с запрошенным, значит развёрнута старая версия скрипта, которая
-      // молча откатилась на пинг, а не старательно притворилась «успехом»
-      if (res._action !== undefined && res._action !== payload.kind) {
-        onDone(false, "сервер не выполнил «" + payload.kind + "» — похоже, развёрнута старая версия Маршрутные-карты.gs");
-        return;
+    (async function () {
+      try {
+        var r;
+        switch (payload.kind) {
+          case "create":
+            r = await sb.from("route_maps").insert({
+              fio: payload.фио, role: пусто_(payload.роль), mentor: пусто_(payload.наставник),
+              hired: пусто_(payload.принят), mail: пусто_(payload.mail)
+            });
+            break;
+          case "archive":
+            r = await sb.from("route_maps").update({ archived: true }).eq("fio", payload.фио);
+            break;
+          case "unarchive":
+            r = await sb.from("route_maps").update({ archived: false }).eq("fio", payload.фио);
+            break;
+          case "delete":
+            r = await sb.from("route_maps").delete().eq("fio", payload.фио);
+            break;
+          default:
+            onDone(false, "неизвестное действие: " + payload.kind);
+            return;
+        }
+        if (r.error) { onDone(false, r.error.message); return; }
+        onDone(true);
+      } catch (e) {
+        onDone(false, (e && e.message) || String(e));
       }
-      onDone(true);
-    }, function (why) { onDone(false, why); }, 15000);
+    })();
   }
 
   function box(html, cls) {
@@ -432,18 +404,28 @@ h1{font:700 32px/1.15 var(--font-heading);color:var(--it-teal-deep);margin:16px 
     grid.innerHTML = list.map(cardHtml).join("");
   }
 
+  // Поля из Supabase (current_step/steps_done и т.д.) приводим к тем же
+  // именам, что были в ответе старого action=list (step/done и т.д.) —
+  // render()/cardHtml() ниже написаны под эти имена, трогать их не пришлось.
+  function routeRowToCard_(r) {
+    return {
+      fio: r.fio, role: r.role, mentor: r.mentor, hired: r.hired, mail: r.mail,
+      archived: r.archived, step: r.current_step, done: r.steps_done, total: r.steps_total,
+      studyDone: r.study_done, studyTotal: r.study_total, score: r.score,
+      updatedAt: r.updated_at, pct: r.pct
+    };
+  }
+
   function loadList(silent) {
     if (!silent) box("Загружаю список карт…");
-    jsonp({ action: "list" }, function (info) {
-      if (!info || info.ok === false) {
-        box('Список карт недоступен: ' + ((info && info.error) || "нет ответа") + '.<br>' + HINT, "err");
+    sb.from("route_maps").select("*").then(function (res) {
+      if (res.error) {
+        box("Список карт недоступен: " + res.error.message + ".", "err");
         return;
       }
-      ALL_CARDS = info.cards || [];
+      ALL_CARDS = (res.data || []).map(routeRowToCard_);
       $("#msg").hidden = true;
       render();
-    }, function (why) {
-      box('Список карт недоступен: ' + why + '.<br>' + HINT, "err");
     });
   }
 
@@ -457,7 +439,7 @@ h1{font:700 32px/1.15 var(--font-heading);color:var(--it-teal-deep);margin:16px 
     };
     box("Создаю карту «" + эк(fio) + "»…");
     postAction(payload, function (ok, why) {
-      if (!ok) { box('Создать не удалось: ' + why + '.<br>' + HINT, "err"); return; }
+      if (!ok) { box("Создать не удалось: " + why + ".", "err"); return; }
       var link = cardLink({ fio: payload.фио, role: payload.роль, mentor: payload.наставник, hired: payload.принят, mail: payload.mail });
       var absLink = new URL(link, location.href).href;
       showCreated(fio, link, absLink);
@@ -505,20 +487,31 @@ h1{font:700 32px/1.15 var(--font-heading);color:var(--it-teal-deep);margin:16px 
     if (action === "delete" && !await itConfirm_("Удалить карту «" + fio + "» насовсем? Это нельзя отменить.", true)) return;
     b.disabled = true;
     postAction({ kind: action, фио: fio }, function (ok, why) {
-      if (!ok) { box('Не получилось: ' + why + '.<br>' + HINT, "err"); b.disabled = false; return; }
+      if (!ok) { box("Не получилось: " + why + ".", "err"); b.disabled = false; return; }
       loadList(true);
     });
   });
 
   /* Раньше по прямой ссылке (минуя talent-gate.html) страница всё равно
      показывала оболочку списка карт — вход проверялся только для
-     редактирования, а не для просмотра. Теперь без токена сразу уводим
-     на вход, ничего не запрашивая и не показывая. */
-  if (!ТЕКУЩИЙ_ТОКЕН) {
-    location.replace("talent-gate.html?return=" + encodeURIComponent(location.pathname + location.search));
-  } else {
+     редактирования, а не для просмотра. Теперь без сессии сразу уводим
+     на вход, ничего не запрашивая и не показывая. "again=1" — см.
+     подробное объяснение в team.html: без него человек со старой (ещё не
+     Supabase) сессией зациклился бы между этой страницей и входом. */
+  async function bootstrap_() {
+    var sess = await sb.auth.getSession();
+    var session = sess && sess.data && sess.data.session;
+    if (!session) {
+      location.replace("talent-gate.html?again=1&return=" + encodeURIComponent(location.pathname + location.search));
+      return;
+    }
+    ТЕКУЩАЯ_ПОЧТА = String(session.user.email || "").trim().toLowerCase();
+    var prof = await sb.from("profiles").select("is_admin").eq("id", session.user.id).single();
+    ЭТО_АДМИН = !!(prof.data && prof.data.is_admin);
+    renderWhoami_();
     loadList(false);
   }
+  bootstrap_();
 
   document.getElementById('toTop').addEventListener('click', function () {
     var rm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;

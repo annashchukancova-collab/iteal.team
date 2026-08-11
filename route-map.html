@@ -7,6 +7,7 @@
 <!-- Общие стили iTeal: токены брендбука и базовые элементы.
      Подключается и в «Список», и в «Карту» через include -->
 <link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;500;700&family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
 :root{
   /* ---- токены брендбука iTeal ---- */
@@ -790,7 +791,9 @@ footerNote:"Источник — файл «Маршрутная карта iTea
    Вставьте сюда адрес развёрнутого веб-приложения Apps Script (…/exec) —
    инструкция в файле Маршрутные-карты.gs. Пока строка пустая, карта
    работает как раньше: только локально, в таблицу ничего не уходит. */
-const NEW_SEND_URL = "https://script.google.com/a/macros/iteal.expert/s/AKfycbyvNwCQIvoEIHytg18mItMlTpVbOEaijGxsjjCZ7om4jU7EsKH4DZtmh--FFVmtQrQPcw/exec";
+const SUPABASE_URL = "https://evqvzapbbtnfidvnhgxe.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_3ACYfKH82rtlVdt1olMHIA_GvP5KjYi";
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const hash = s => { let h = 5381; for(let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0; return h.toString(36); };
 const strip = s => String(s).replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
@@ -824,63 +827,26 @@ function отправить(){
   отправитьНаСервер();
 }
 
-// GET + JSONP через <script src>, не POST-форма: /exec у Apps Script всегда
-// редиректит на script.googleusercontent.com, а браузер при редиректе
-// превращает POST в GET и теряет тело запроса — доходило "успешно" по факту
-// загрузки iframe, но пустым. У GET тело не нужно, всё в самом адресе,
-// редирект ничего не теряет.
-let счётчикОтправки = 0;
-function jsonpОтправка(params, готово){
-  const имя = '__iteal_rm_' + (++счётчикОтправки) + '_' + Date.now();
-  const sc = document.createElement('script');
-  let завершено = false;
-  const таймаут = setTimeout(() => finish(false, 'нет ответа за 15 секунд'), 15000);
-  function finish(ок, why, данные){
-    if(завершено) return; завершено = true; clearTimeout(таймаут);
-    try { delete window[имя]; } catch(e){ window[имя] = undefined; }
-    sc.remove(); готово(ок, why, данные);
-  }
-  // сервер эхом присылает, какое действие он реально выполнил — если оно не
-  // совпадает с запрошенным, значит развёрнута старая версия скрипта, которая
-  // молча откатилась на пинг вместо настоящей записи прогресса
-  window[имя] = (данные) => {
-    if(данные && данные._action !== undefined && params.action && данные._action !== params.action){
-      finish(false, 'сервер не выполнил «' + params.action + '» — похоже, развёрнута старая версия Маршрутные-карты.gs', данные);
-      return;
-    }
-    finish(!(данные && данные.ok === false), данные && данные.error, данные);
-  };
-  sc.onerror = () => finish(false, 'нет доступа к адресу');
-  let qs = 'callback=' + имя;
-  Object.keys(params || {}).forEach(k => { qs += '&' + k + '=' + encodeURIComponent(params[k]); });
-  sc.src = NEW_SEND_URL + (NEW_SEND_URL.indexOf('?') < 0 ? '?' : '&') + qs + '&t=' + Date.now();
-  document.head.appendChild(sc);
-}
+// Пустая строка в Supabase хранится как NULL, а не "".
+const пусто_ = v => { v = (v == null ? '' : String(v)).trim(); return v === '' ? null : v; };
 
-function отправитьНаСервер(){
-  if(!NEW_SEND_URL) return;
+async function отправитьНаСервер(){
   const фио = (АНКЕТА.фио || '').trim();
   if(!фио){ шлём = false; return; }
 
   const с = сводка();
-  const payload = {
-    kind: 'progress',
-    фио: фио,
-    профиль: {
-      роль: АНКЕТА.роль || '', наставник: АНКЕТА.наставник || '', принят: АНКЕТА.принят || '',
-      рождение: АНКЕТА.рождение || '', телефон: АНКЕТА.телефон || '', оплата: АНКЕТА.оплата || ''
-    },
-    mail: ПОЧТА || '',
-    pct: с.pct, готово: с.готово, всего: с.всего,
-    учГот: с.учГот, учВсе: с.учВсе, шаг: с.шаг, балл: с.балл || ''
-  };
-
   шлём = true;
-  jsonpОтправка({ action: 'progress', payload: JSON.stringify(payload) }, (ок, why) => {
-    шлём = false;
-    статус(ок ? 'сохранено и отправлено ' + new Date().toLocaleTimeString('ru-RU').slice(0,5)
-              : 'сохранено локально, отправка не удалась — повторим на следующей отметке' + (why ? ' (' + why + ')' : ''), ок ? '' : 'err');
-  });
+  const { error } = await sb.from('route_maps').upsert({
+    fio: фио,
+    role: пусто_(АНКЕТА.роль), mentor: пусто_(АНКЕТА.наставник), hired: пусто_(АНКЕТА.принят),
+    birthday: пусто_(АНКЕТА.рождение), phone: пусто_(АНКЕТА.телефон), pay_terms: пусто_(АНКЕТА.оплата),
+    mail: пусто_(ПОЧТА),
+    pct: с.pct, steps_done: с.готово, steps_total: с.всего,
+    study_done: с.учГот, study_total: с.учВсе, current_step: пусто_(с.шаг), score: пусто_(с.балл)
+  }, { onConflict: 'fio' });
+  шлём = false;
+  статус(!error ? 'сохранено и отправлено ' + new Date().toLocaleTimeString('ru-RU').slice(0,5)
+            : 'сохранено локально, отправка не удалась — повторим на следующей отметке' + (error ? ' (' + error.message + ')' : ''), !error ? '' : 'err');
 }
 
 window.addEventListener('beforeunload', e => {
@@ -1183,7 +1149,7 @@ function открытьКарту(){
   window.картинку($('#cardbannerimg'), КАРТИНКИ.card ? 'card' : 'hero');
   анкетуВПоля();
   строим(); самообучение(); обратная(); читаемОС(); обновить();
-  статус(NEW_SEND_URL ? 'прогресс сохраняется и отправляется автоматически' : 'прогресс сохраняется в этом браузере');
+  статус('прогресс сохраняется и отправляется автоматически');
   $('#foot').textContent = 'Отметки сохраняются в этом браузере и автоматически отправляются в таблицу «Маршрутные карты».';
   // карта должна попасть в общий список сразу при открытии, а не только после
   // первой отметки шага — иначе Искатель талантов не увидит её в списке,
@@ -1201,7 +1167,25 @@ window.addEventListener('scroll', маркер, { passive: true });
 
 
 window.картинку = (el, ключ) => { if(el && КАРТИНКИ[ключ]) el.src = КАРТИНКИ[ключ]; };
-открытьКарту();
+
+// Раньше страница открывалась вообще без входа — по прямой ссылке с именем
+// в адресе. Теперь у кандидата к моменту получения ссылки уже есть рабочая
+// почта @iteal.expert, поэтому здесь та же проверка сессии, что и на
+// остальных страницах. "again=1" — см. подробное объяснение в team.html:
+// без него человек со старой (ещё не Supabase) сессией зациклился бы между
+// этой страницей и входом.
+(async function bootstrap_(){
+  const { data } = await sb.auth.getSession();
+  const session = data && data.session;
+  if(!session){
+    location.replace('talent-gate.html?again=1&return=' + encodeURIComponent(location.pathname + location.search));
+    return;
+  }
+  // Реальная почта из подтверждённой сессии важнее того, что могло быть
+  // вписано в ссылку (?mail=...) — она могла устареть или быть неверной.
+  ПОЧТА = String(session.user.email || '').trim().toLowerCase() || ПОЧТА;
+  открытьКарту();
+})();
 document.getElementById('toTop').addEventListener('click', function () {
   var rm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   window.scrollTo({ top: 0, behavior: rm ? 'auto' : 'smooth' });
