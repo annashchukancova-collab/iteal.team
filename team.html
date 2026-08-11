@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@500;700&family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
 :root{
   --it-teal:#43836D; --it-teal-deep:#2C5748; --it-mint:#7AC1A8; --it-accent:#FFD54F;
@@ -230,24 +231,20 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
   function itAlert_(message) {
     return itModal_({ message: message, isPrompt: false, showCancel: false, okText: "Понятно" });
   }
+  // Команда и Подрядчики теперь живут в Supabase (первая сущность,
+  // перенесённая с Google Sheets/Apps Script) — данные и права доступа
+  // (кто админ) проверяются там же. Оргструктура пока не перенесена
+  // (это отдельный, более сложный шаг миграции), поэтому подстановка
+  // ролей из неё (rolesForName_ ниже) на время переезда продолжает читать
+  // старый бэкенд напрямую — это только чтение, без входа, ничего не
+  // ломает и не требует токена.
   var SEND_URL = "https://script.google.com/a/macros/iteal.expert/s/AKfycbyvNwCQIvoEIHytg18mItMlTpVbOEaijGxsjjCZ7om4jU7EsKH4DZtmh--FFVmtQrQPcw/exec";
-  var АДМИНЫ = [
-    "anna.shchukancova@iteal.expert",
-    "pavel.stupko@iteal.expert",
-    "galina.marushevskaia@iteal.expert",
-    "anastasiia.edakina@iteal.expert"
-  ];
-  /* Почта сама по себе больше ничего не доказывает — её мог вписать кто
-     угодно. Настоящее подтверждение личности — токен, который выдаёт
-     сервер после входа через Google (talent-gate.html); без него почта
-     не считается подтверждённой, даже если когда-то была сохранена. */
-  var ТЕКУЩИЙ_ТОКЕН = (function () {
-    try { return (localStorage.getItem("iteal-session-token") || "").trim(); } catch (e) { return ""; }
-  })();
-  var ТЕКУЩАЯ_ПОЧТА = ТЕКУЩИЙ_ТОКЕН ? (function () {
-    try { return (localStorage.getItem("iteal-talent-mail") || "").trim().toLowerCase(); } catch (e) { return ""; }
-  })() : "";
-  var ЭТО_АДМИН = АДМИНЫ.indexOf(ТЕКУЩАЯ_ПОЧТА) !== -1;
+  var SUPABASE_URL = "https://evqvzapbbtnfidvnhgxe.supabase.co";
+  var SUPABASE_ANON_KEY = "sb_publishable_3ACYfKH82rtlVdt1olMHIA_GvP5KjYi";
+  var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  var ТЕКУЩАЯ_ПОЧТА = "";
+  var ЭТО_АДМИН = false;
   var MEMBERS = [];
   var ORG_NODES = [];
 
@@ -292,18 +289,64 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
     document.head.appendChild(sc);
   }
 
+  // Пустая строка в Supabase хранится как NULL, а не "" — так поля
+  // остаются реально пустыми в базе, а не строкой из пробела.
+  function пусто_(v) { v = (v || "").trim(); return v === "" ? null : v; }
+
+  function teamPayloadToRow_(d) {
+    return {
+      name: d.name, telegram: пусто_(d.telegram), role: пусто_(d.role), phone: пусто_(d.phone),
+      birthday: пусто_(d.birthday), city: пусто_(d.city), work_mail: пусто_(d.workMail), instagram: пусто_(d.instagram)
+    };
+  }
+  function contractorPayloadToRow_(d) {
+    return {
+      name: d.name, telegram: пусто_(d.telegram), specialization: пусто_(d.role), phone: пусто_(d.phone),
+      work_mail: пусто_(d.workMail), buddy: пусто_(d.buddy), company: пусто_(d.company), city: пусто_(d.city),
+      timezone: пусто_(d.timezone), rate: пусто_(d.rate), dev_count: пусто_(d.devCount),
+      referred_by: пусто_(d.referredBy), participation: пусто_(d.participation), reviews: пусто_(d.reviews),
+      server_access: пусто_(d.serverAccess)
+    };
+  }
+
+  // Единая точка входа для всех действий над Командой/Подрядчиками — та же
+  // сигнатура (kind, payload, onDone), что была у версии на jsonp, поэтому
+  // весь код ниже, который её вызывает, менять не пришлось. Права доступа
+  // (кто может писать) теперь проверяет сама база (RLS), а не эта функция.
   function teamAction(kind, payload, onDone) {
     payload = payload || {};
-    payload.mail = ТЕКУЩАЯ_ПОЧТА;
-    payload.token = ТЕКУЩИЙ_ТОКЕН;
-    jsonp({ action: kind, payload: JSON.stringify(payload) }, function (res) {
-      if (!res || res.ok === false) { onDone(false, (res && res.error) || "нет ответа"); return; }
-      if (res._action !== undefined && res._action !== kind) {
-        onDone(false, "сервер не выполнил «" + kind + "» — похоже, развёрнута старая версия Маршрутные-карты.gs");
-        return;
+    (async function () {
+      try {
+        var r;
+        switch (kind) {
+          case "teamAdd":
+            r = await sb.from("team_members").insert(teamPayloadToRow_(payload)).select().single();
+            break;
+          case "teamUpdate":
+            r = await sb.from("team_members").update(teamPayloadToRow_(payload)).eq("id", payload.id);
+            break;
+          case "teamDelete":
+            r = await sb.from("team_members").delete().eq("id", payload.id);
+            break;
+          case "contractorAdd":
+            r = await sb.from("contractors").insert(contractorPayloadToRow_(payload)).select().single();
+            break;
+          case "contractorUpdate":
+            r = await sb.from("contractors").update(contractorPayloadToRow_(payload)).eq("id", payload.id);
+            break;
+          case "contractorDelete":
+            r = await sb.from("contractors").delete().eq("id", payload.id);
+            break;
+          default:
+            onDone(false, "неизвестное действие: " + kind);
+            return;
+        }
+        if (r.error) { onDone(false, r.error.message); return; }
+        onDone(true, r.data || {});
+      } catch (e) {
+        onDone(false, (e && e.message) || String(e));
       }
-      onDone(true, res);
-    }, function (why) { onDone(false, why); }, 15000);
+    })();
   }
 
   function socialLink_(base, value) {
@@ -464,10 +507,9 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
           wireViewRows_();
         });
       } else {
-        var id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-        teamAction("teamAdd", Object.assign({ id: id }, data), function (ok, resOrWhy) {
+        teamAction("teamAdd", data, function (ok, resOrWhy) {
           if (!ok) { itAlert_("Не сохранилось: " + resOrWhy); btn.disabled = false; return; }
-          var m = Object.assign({ id: id }, data, { mail: data.workMail });
+          var m = Object.assign({ id: resOrWhy.id }, data, { mail: data.workMail });
           MEMBERS.push(m);
           var wrap = document.createElement("tbody");
           wrap.innerHTML = viewRowHtml_(m);
@@ -488,14 +530,24 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
     row.querySelector(".f-name").focus();
   });
 
+  // Поля из Supabase (work_mail и т.д.) приводим к тем же именам, что
+  // были в ответе старого teamList (mail и т.д.) — весь рендер ниже
+  // написан под эти имена, трогать его не пришлось.
+  function teamRowToMember_(r) {
+    return {
+      id: r.id, name: r.name, telegram: r.telegram, role: r.role, phone: r.phone,
+      birthday: r.birthday, city: r.city, mail: r.work_mail, instagram: r.instagram
+    };
+  }
+
   function load() {
-    jsonp({ action: "teamList" }, function (res) {
-      if (!res || res.ok === false) {
-        document.getElementById("teamStatus").textContent = "Не получилось загрузить команду: " + ((res && res.error) || "нет ответа") + ".";
+    sb.from("team_members").select("*").then(function (res) {
+      if (res.error) {
+        document.getElementById("teamStatus").textContent = "Не получилось загрузить команду: " + res.error.message + ".";
         document.getElementById("teamStatus").className = "status err";
         return;
       }
-      MEMBERS = res.members || [];
+      MEMBERS = (res.data || []).map(teamRowToMember_);
       jsonp({ action: "orgList" }, function (orgRes) {
         ORG_NODES = (orgRes && orgRes.nodes) || [];
         document.getElementById("teamStatus").hidden = true;
@@ -509,10 +561,7 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
         document.getElementById("teamTableWrap").hidden = false;
         renderTeam_();
       }, 15000);
-    }, function (why) {
-      document.getElementById("teamStatus").textContent = "Нет связи с сервером: " + why + ".";
-      document.getElementById("teamStatus").className = "status err";
-    }, 15000);
+    });
   }
 
   /* ------------------------------  Подрядчики  ------------------------------ */
@@ -668,10 +717,9 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
           wireContractorViewRows_();
         });
       } else {
-        var id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-        teamAction("contractorAdd", Object.assign({ id: id }, data), function (ok, resOrWhy) {
+        teamAction("contractorAdd", data, function (ok, resOrWhy) {
           if (!ok) { itAlert_("Не сохранилось: " + resOrWhy); btn.disabled = false; return; }
-          var m = Object.assign({ id: id }, data, { mail: data.workMail });
+          var m = Object.assign({ id: resOrWhy.id }, data, { mail: data.workMail });
           CONTRACTORS.push(m);
           var wrap = document.createElement("tbody");
           wrap.innerHTML = contractorViewRowHtml_(m);
@@ -692,23 +740,29 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
     row.querySelector(".f-name").focus();
   });
 
+  function contractorRowToMember_(r) {
+    return {
+      id: r.id, name: r.name, telegram: r.telegram, role: r.specialization, phone: r.phone,
+      mail: r.work_mail, buddy: r.buddy, company: r.company, city: r.city, timezone: r.timezone,
+      rate: r.rate, devCount: r.dev_count, referredBy: r.referred_by, participation: r.participation,
+      reviews: r.reviews, serverAccess: r.server_access
+    };
+  }
+
   function loadContractorsOnce_() {
     if (CONTRACTORS_LOADED) return;
     CONTRACTORS_LOADED = true;
-    jsonp({ action: "contractorList" }, function (res) {
-      if (!res || res.ok === false) {
-        document.getElementById("contractorStatus").textContent = "Не получилось загрузить подрядчиков: " + ((res && res.error) || "нет ответа") + ".";
+    sb.from("contractors").select("*").then(function (res) {
+      if (res.error) {
+        document.getElementById("contractorStatus").textContent = "Не получилось загрузить подрядчиков: " + res.error.message + ".";
         document.getElementById("contractorStatus").className = "status err";
         return;
       }
-      CONTRACTORS = res.members || [];
+      CONTRACTORS = (res.data || []).map(contractorRowToMember_);
       document.getElementById("contractorStatus").hidden = true;
       document.getElementById("contractorTableWrap").hidden = false;
       renderContractors_();
-    }, function (why) {
-      document.getElementById("contractorStatus").textContent = "Нет связи с сервером: " + why + ".";
-      document.getElementById("contractorStatus").className = "status err";
-    }, 15000);
+    });
   }
 
   document.getElementById("typeTabs").querySelectorAll(".typetab").forEach(function (btn) {
@@ -728,13 +782,30 @@ h1{font-family:var(--font-heading);font-weight:700;font-size:34px;line-height:1.
 
   /* Раньше по прямой ссылке (минуя talent-gate.html) страница всё равно
      показывала команду и подрядчиков — вход проверялся только для
-     редактирования, а не для просмотра. Теперь без токена сразу уводим
-     на вход, ничего не запрашивая и не показывая. */
-  if (!ТЕКУЩИЙ_ТОКЕН) {
-    location.replace("talent-gate.html?return=" + encodeURIComponent(location.pathname + location.search));
-  } else {
+     редактирования, а не для просмотра. Теперь без сессии сразу уводим
+     на вход, ничего не запрашивая и не показывая.
+
+     "?again=1" (а не просто "?return=…") — принципиально: у входа есть
+     старая проверка "уже входил раньше?" по старому токену
+     (iteal-session-token), который мог быть выдан ДО переезда этой
+     страницы на Supabase — тогда своей Supabase-сессии у человека ещё
+     нет, а старая проверка решит, что всё в порядке, и без "again=1"
+     тихо отправит его обратно сюда по кругу. "again=1" всегда показывает
+     кнопку входа заново — это стоит одного лишнего клика, но не даёт
+     зациклиться. */
+  async function bootstrap_() {
+    var sess = await sb.auth.getSession();
+    var session = sess && sess.data && sess.data.session;
+    if (!session) {
+      location.replace("talent-gate.html?again=1&return=" + encodeURIComponent(location.pathname + location.search));
+      return;
+    }
+    ТЕКУЩАЯ_ПОЧТА = String(session.user.email || "").trim().toLowerCase();
+    var prof = await sb.from("profiles").select("is_admin").eq("id", session.user.id).single();
+    ЭТО_АДМИН = !!(prof.data && prof.data.is_admin);
     load();
   }
+  bootstrap_();
 })();
 </script>
 </body>
